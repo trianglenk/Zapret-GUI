@@ -68,22 +68,6 @@
 3. Дождитесь завершения — готовый установщик появится в папке `installer/ZapretGUI-Setup.exe`.
 
 ---
-
-## Публикация новой версии (для разработчика)
-
-В репозитории настроен GitHub Actions (`.github/workflows/release.yml`), который автоматически собирает релиз при отправке тега версии:
-
-1. Убедитесь, что в настройках репозитория (**Settings → Actions → General → Workflow permissions**) выбрано **Read and write permissions**.
-2. Создайте и отправьте тег версии из папки проекта:
-   ```powershell
-   git tag v1.0.2
-   git push origin v1.0.2
-   ```
-
-GitHub Actions автоматически возьмёт номер версии из тега, соберёт `ZapretGUI.exe`, упакует его в `ZapretGUI-Setup.exe` и опубликует релиз в разделе **Releases**.
-
----
-
 ## Структура проекта
 
 * `main.py` — графический интерфейс приложения.
