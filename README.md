@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/icon.png" alt="Zapret GUI Icon" width="120">
+  <img src="assets/icon.png" alt="Zapret GUI Icon" width="120%">
   
   # Zapret GUI
   
