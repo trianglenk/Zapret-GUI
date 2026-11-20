@@ -5,10 +5,10 @@
   
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
-<img src="https://forthebadge.com" alt="Made with Python">
-<img src="https://forthebadge.com" alt="Built for Windows">
-
-
+  ![Platform](https://shields.io)
+  ![Python](https://shields.io)
+  ![Version](https://shields.io)
+  ![License](https://shields.io)
 </div>
 
 
