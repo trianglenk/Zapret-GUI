@@ -5,7 +5,16 @@
   
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
-  <img src="https://badgen.net" alt="Platform">
+<svg xmlns="http://w3.org" width="166" height="20">
+  <rect width="62" height="20" rx="3" fill="#555"/>
+  <rect x="62" width="104" height="20" rx="3" fill="#0078D6"/>
+  <rect x="62" width="4" height="20" fill="#0078D6"/>
+  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+    <text x="31" y="14">Platform</text>
+    <text x="114" y="14">Windows 10/11</text>
+  </g>
+</svg>
+
   <img src="https://badgen.net" alt="Python">
   <img src="https://badgen.net" alt="Version">
   <img src="https://badgen.net" alt="License">
