@@ -5,11 +5,12 @@
   
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
-  ![Platform](https://shields.io)
-  ![Python](https://shields.io)
-  ![Version](https://shields.io)
-  ![License](https://shields.io)
+  <img src="https://shields.io" alt="Platform">
+  <img src="https://shields.io" alt="Python">
+  <img src="https://shields.io" alt="Version">
+  <img src="https://shields.io" alt="License">
 </div>
+
 
 ---
 
