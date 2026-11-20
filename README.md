@@ -7,7 +7,7 @@
 
 <div align="center">
 
-| 🪟 **Windows 10/11 (x64)** | 🐍 **Python 3.11** | 🏷️ **Version 1.0.2** | ⚖️ **MIT License** |
+| 🪟 **Windows 10/11 (x32)** | 🐍 **Python 3.11** | 🏷️ **Version 1.0.2** | ⚖️ **MIT License** |
 | :---: | :---: | :---: | :---: |
 
 </div>
