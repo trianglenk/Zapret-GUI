@@ -5,10 +5,11 @@
   
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
- <img src="assets/badge-platform.svg" alt="Platform">
-<img src="assets/badge-python.svg" alt="Python">
-<img src="assets/badge-version.svg" alt="Version">
-<img src="assets/badge-license.svg" alt="License">
+  <img src="https://badgen.net" alt="Platform">
+  <img src="https://badgen.net" alt="Python">
+  <img src="https://badgen.net" alt="Version">
+  <img src="https://badgen.net" alt="License">
+
 </div>
 
 
