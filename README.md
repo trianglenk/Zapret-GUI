@@ -34,9 +34,11 @@
 ## Скриншоты интерфейса
 
 <div align="center">
-  <img src="zapret-gui-v1.0.2.png" alt="Главное окно Zapret GUI" width="48%">
-  <img src="zapret-gui-v1.0.2%5B2%5D.png" alt="Настройки Zapret GUI" width="48%">
+  <img src="zapret-gui-v1.0.2.png" alt="Главное окно Zapret GUI" width="42%">
+  &nbsp;&nbsp;
+  <img src="zapret-gui-v1.0.2%5B2%5D.png" alt="Настройки Zapret GUI" width="42%">
 </div>
+
 
 
 
