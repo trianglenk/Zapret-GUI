@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/banner.png" alt="Zapret GUI Banner" width="100%">
+
   
   <br><br>
   
@@ -15,10 +15,11 @@
   ![License](https://shields.io)
 </div>
 
+
 ---
 
 ## О приложении
-
+  <img src="assets/banner.png" alt="Zapret GUI Banner" width="100%">
 **Zapret GUI** — удобная графическая оболочка для Windows, позволяющая управлять работой `zapret` без необходимости вручную редактировать батники и конфигурационные файлы.
 
 ### Основные возможности:
