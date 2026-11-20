@@ -5,11 +5,16 @@
   
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
-  ![Platform](https://shields.io)
-  ![Python](https://shields.io)
-  ![Version](https://shields.io)
-  ![License](https://shields.io)
+ <div align="center">
+  <img src="https://githubusercontent.com" alt="Windows" height="24" title="Windows 10/11 (x64)">
+  &nbsp;&nbsp;
+  <img src="https://githubusercontent.com" alt="Python" height="24" title="Python 3.11">
+  &nbsp;&nbsp;
+  <kbd><b>Version: 1.0.2</b></kbd>
+  &nbsp;&nbsp;
+  <kbd><b>License: MIT</b></kbd>
 </div>
+
 
 
 ---
