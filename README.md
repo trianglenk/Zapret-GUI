@@ -1,14 +1,3 @@
-from pathlib import Path
-import zipfile, shutil, textwrap
-
-source = Path("/mnt/data/ZapretGUI-1.0.5-with-README-media.zip")
-base = Path("/mnt/data/zapretgui_readme_short")
-if base.exists():
-    shutil.rmtree(base)
-base.mkdir()
-with zipfile.ZipFile(source) as z:
-    z.extractall(base)
-root = base / "zapret-gui-v2"
 
 readme = """<div align="center">
 
