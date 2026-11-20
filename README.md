@@ -1,9 +1,5 @@
 <div align="center">
-
-  
-  <br><br>
-  
-  <img src="assets/icon.png" alt="Zapret GUI Icon" width="80">
+  <img src="assets/icon.png" alt="Zapret GUI Icon" width="100">
   
   # Zapret GUI
   
