@@ -1,6 +1,4 @@
 
-readme = """<div align="center">
-
 ![Zapret GUI](docs/media/readme-banner.png)
 
 # Zapret GUI
