@@ -6,13 +6,12 @@
   **Удобная графическая оболочка для управления `zapret` в Windows**
 
 <div align="center">
-  <h3>
-    <kbd>🪟 Windows 10/11 (x64)</kbd> &nbsp;
-    <kbd>🐍 Python 3.11</kbd> &nbsp;
-    <kbd>🏷️ Version 1.0.2</kbd> &nbsp;
-    <kbd>⚖️ MIT License</kbd>
-  </h3>
+
+| 🪟 **Windows 10/11 (x64)** | 🐍 **Python 3.11** | 🏷️ **Version 1.0.2** | ⚖️ **MIT License** |
+| :---: | :---: | :---: | :---: |
+
 </div>
+
 
 
 
