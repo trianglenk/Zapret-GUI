@@ -1,8 +1,12 @@
 """Логика без GUI: папки, обновление с GitHub, бэкапы, импорт, запуск, проверка сайтов."""
+from __future__ import annotations
+import copy
+import ctypes
 import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -15,6 +19,8 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import look
+
 REPO = "Flowseal/zapret-discord-youtube"
 REPO_URL = f"https://github.com/{REPO}"
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
@@ -23,7 +29,6 @@ try:
     from version import APP_REPO as _APP_REPO, VERSION
 except Exception:
     VERSION, _APP_REPO = "0.0.0", ""
-APP_ASSET = "ZapretGUI.exe"   # файл, который лежит в релизе на GitHub
 MAX_APP_BACKUPS = 5
 TASK_NAME = "ZapretGUI"
 UA = {"User-Agent": "ZapretGUI/2.0"}
@@ -48,6 +53,14 @@ DEFAULTS = {
     "accent": "",           # свой цвет акцента (#rrggbb) или пусто
     "font_size": "normal",  # small | normal | large
     "corners": "soft",      # soft | sharp
+    "density": "normal",    # compact | normal | spacious
+    "animations": True,
+    "animation_style": "smooth",  # smooth | quick | subtle
+    "collapsed_sections": {},  # индивидуальные настройки сворачивания блоков
+    "sites_auto": True,     # проверять сайты после включения обхода
+    "lists_auto_update": True,
+    "lists_updated": "",
+    "lists_checked": 0,
     "app_repo": "",
     "app_channel": "stable",   # stable | pre (пререлизы)
     "app_auto_update": False,
@@ -66,20 +79,72 @@ DEFAULTS = {
 }
 
 
+_SSL_CTX = None
+
+
+def gh_open(req, timeout: int = 15):
+    """urlopen для GitHub с набором сертификатов certifi (если установлен)."""
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        try:
+            import certifi
+            _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            _SSL_CTX = ssl.create_default_context()
+    return urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX)
+
+
+def _strip_prefix(s: str, prefix: str) -> str:  # str.removeprefix есть только в Python 3.9+
+    return s[len(prefix):] if s.startswith(prefix) else s
+
+
+def _coerce(cfg: dict) -> dict:
+    """Приводит значения к ожидаемым типам: старые и повреждённые настройки не должны ронять приложение."""
+    for key, default in DEFAULTS.items():
+        val = cfg.get(key, default)
+        if isinstance(default, bool):
+            val, ok = look.to_bool(val, default), True   # "false", 0, "off" и т.п. из старых/ручных файлов
+        elif isinstance(default, (int, float)):
+            ok = isinstance(val, (int, float)) and not isinstance(val, bool)
+        else:
+            ok = isinstance(val, type(default))
+        if not ok:
+            val = copy.deepcopy(default)
+        cfg[key] = val
+    cfg["profiles_enabled"] = [x for x in cfg["profiles_enabled"] if isinstance(x, str)]
+    raw_collapsed = cfg.get("collapsed_sections", {})
+    cfg["collapsed_sections"] = {str(k): look.to_bool(v, False) for k, v in raw_collapsed.items()} if isinstance(raw_collapsed, dict) else {}
+    cfg["sites"] = [{"name": str(s.get("name") or s["url"]), "url": s["url"]} for s in cfg["sites"]
+                    if isinstance(s, dict) and isinstance(s.get("url"), str) and s["url"].strip()]
+    return look.sanitize_look(cfg)
+
+
 def _load() -> dict:
+    data = {}
     try:
-        data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        data = {}
-    return {**DEFAULTS, **data}
+        raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8-sig"))
+        if not isinstance(raw, dict):
+            raise ValueError("config is not an object")
+        data = raw
+    except FileNotFoundError:
+        pass
+    except Exception:  # файл повреждён: сохраняем его копию и стартуем с настройками по умолчанию
+        try:
+            os.replace(str(CONFIG_FILE), str(CONFIG_FILE.with_name("config.json.bad")))
+        except OSError:
+            pass
+    return _coerce({**copy.deepcopy(DEFAULTS), **data})
 
 
 CFG = _load()
 
 
 def save() -> None:
+    """Запись через временный файл: при сбое посреди записи старый config.json остаётся целым."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(CFG, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = CONFIG_FILE.with_name("config.json.tmp")
+    tmp.write_text(json.dumps(CFG, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(str(tmp), str(CONFIG_FILE))
 
 
 def bg(fn) -> None:
@@ -121,7 +186,7 @@ def set_base_dir(path: str) -> None:
 # ---------- GitHub ----------
 def latest_release() -> tuple[str, str]:
     req = urllib.request.Request(API_LATEST, headers={**UA, "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=15) as r:
+    with gh_open(req, 15) as r:
         data = json.load(r)
     for a in data.get("assets", []):
         if a["name"].lower().endswith(".zip"):
@@ -132,7 +197,7 @@ def latest_release() -> tuple[str, str]:
 def _download(url: str, dest: Path, log) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=30) as r, open(dest, "wb") as f:
+    with gh_open(req, 30) as r, open(dest, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         done, mark = 0, 25
         while chunk := r.read(64 * 1024):
@@ -202,6 +267,11 @@ def install_release(url: str, tag: str, log) -> None:
             z.extractall(Path(tmp) / "x")
         _replace_release(_find_root(Path(tmp) / "x"), tag, log)
     log(f"Установлено: {tag}")
+    try:
+        n = update_lists(log)
+        log(f"Списки: обновлено файлов {n}" if n else "Списки уже актуальны")
+    except Exception as e:
+        log(f"Списки не обновились: {e}")
 
 
 def import_folder(src: Path, log) -> None:
@@ -252,6 +322,51 @@ PRESETS = {
                 "discord.gift", "discord.new", "discordstatic.com", "discordcdn.com", "dis.gd"],
     "YouTube": ["youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "ggpht.com",
                 "youtubei.googleapis.com", "youtube-nocookie.com"],
+    # Xbox + Microsoft Account + Minecraft (общий стек Microsoft / Xbox Live)
+    "Xbox Microsoft Minecraft": [
+        # Xbox Live / Game Pass
+        "xbox.com", "xboxlive.com", "xboxservices.com", "xboxab.com", "xboxgamepass.com",
+        "gamepass.com", "xboxplayanywhere.com", "xbx.lv",
+        "xsts.auth.xboxlive.com", "user.auth.xboxlive.com", "auth.xboxlive.com",
+        "titlehub.xboxlive.com", "achievements.xboxlive.com", "gamecms.xboxlive.com",
+        "profile.xboxlive.com", "presence.xboxlive.com", "userpresence.xboxlive.com",
+        "images-eds-ssl.xboxlive.com", "xforge.xboxlive.com",
+        # Microsoft identity / account
+        "live.com", "login.live.com", "account.live.com", "account.microsoft.com",
+        "login.microsoftonline.com", "microsoftonline.com", "microsoft.com",
+        "msauth.net", "msftauth.net", "aadcdn.msauth.net",
+        # Minecraft / Mojang
+        "minecraft.net", "minecraftservices.com", "api.minecraftservices.com",
+        "mojang.com", "launchercontent.mojang.com", "launchermeta.mojang.com",
+        "piston-meta.mojang.com", "textures.minecraft.net",
+        "minecraft-services.net", "client.discovery.minecraft-services.net",
+        "authorization.franchise.minecraft-services.net",
+    ],
+    # X (Twitter)
+    "X Twitter": [
+        "x.com", "twitter.com", "t.co", "twimg.com", "pscp.tv", "periscope.tv",
+        "api.x.com", "api.twitter.com", "mobile.twitter.com", "abs.twimg.com",
+        "pbs.twimg.com", "video.twimg.com", "upload.twitter.com", "upload.x.com",
+        "abs-0.twimg.com", "static.ads-twitter.com", "syndication.twitter.com",
+        "tweetdeck.com", "api.tweetdeck.com", "help.x.com", "support.twitter.com",
+    ],
+    # Roblox (только ключевые домены, без *.amazonaws.com / cloudfront — иначе тормозит весь интернет)
+    "Roblox": [
+        "roblox.com", "www.roblox.com", "robloxlabs.com", "rblx.com", "rbx.com",
+        "rbxcdn.com", "setup.rbxcdn.com", "api.rbxcdn.com", "js.rbxcdn.com", "static.rbxcdn.com",
+        "auth.roblox.com", "accountsettings.roblox.com", "apis.roblox.com",
+        "assetgame.roblox.com", "assetdelivery.roblox.com", "catalog.roblox.com",
+        "avatar.roblox.com", "economy.roblox.com", "games.roblox.com", "gamejoin.roblox.com",
+        "friends.roblox.com", "groups.roblox.com", "presence.roblox.com", "realtime.roblox.com",
+        "chat.roblox.com", "voice.roblox.com", "notifications.roblox.com",
+        "clientsettings.api.roblox.com", "clientsettingscdn.roblox.com",
+        "thumbnails.roblox.com", "inventory.roblox.com", "users.roblox.com",
+        "develop.roblox.com", "studio.roblox.com", "publish.roblox.com",
+        "gamepersistence.roblox.com", "matchmaking.roblox.com", "metrics.roblox.com",
+        "client-telemetry.roblox.com", "telemetry.roblox.com",
+        "versioncompatibility.roblox.com", "setup.roblox.com", "update.roblox.com",
+        "rbxinfra.net", "rbxtrk.com",
+    ],
 }
 _BAD_NAME = re.compile(r'[\\/:*?"<>|]')
 
@@ -261,15 +376,17 @@ def safe_name(name: str) -> str:
 
 
 def seed_profiles() -> None:
-    """При первом запуске кладём готовые шаблоны (выключенными): их можно править и удалять."""
-    if CFG.get("profiles_seeded"):
-        return
+    """Кладём готовые шаблоны (выключенными). Можно править и удалять.
+    Новые пресеты из обновления тоже появляются, если файла ещё нет."""
+    created = False
     for name, domains in PRESETS.items():
         p = profiles_dir() / f"{name}.txt"
         if not p.exists():
             p.write_text("\n".join(domains) + "\n", encoding="utf-8")
-    CFG["profiles_seeded"] = True
-    save()
+            created = True
+    if created or not CFG.get("profiles_seeded"):
+        CFG["profiles_seeded"] = True
+        save()
 
 
 def list_profiles() -> list[str]:
@@ -341,6 +458,11 @@ def apply_profiles() -> None:
 
 
 # ---------- обновление самого приложения (GitHub Releases) ----------
+def app_asset() -> str:
+    """Какой файл брать из релиза: сборка для Windows 7 (на PySide2) или обычная."""
+    return "ZapretGUI-Win7.exe" if "PySide2" in sys.modules else "ZapretGUI.exe"
+
+
 def app_repo() -> str:
     return (CFG.get("app_repo") or _APP_REPO or "").strip()
 
@@ -373,14 +495,14 @@ def app_releases() -> list[dict]:
         raise ValueError("не указан репозиторий GitHub в виде «владелец/репозиторий»")
     req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=15",
                                  headers={**UA, "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=15) as r:
+    with gh_open(req, 15) as r:
         data = json.load(r)
     out = []
     with_pre = CFG.get("app_channel") == "pre"
     for rel in data:
         if rel.get("draft") or (rel.get("prerelease") and not with_pre):
             continue
-        asset = next((a for a in rel.get("assets", []) if a["name"].lower() == APP_ASSET.lower()), None)
+        asset = next((a for a in rel.get("assets", []) if a["name"].lower() == app_asset().lower()), None)
         if asset:
             tag = rel["tag_name"]
             out.append({"tag": tag, "version": tag.lstrip("vV"), "date": (rel.get("published_at") or "")[:10],
@@ -391,7 +513,7 @@ def app_releases() -> list[dict]:
 
 def list_app_backups() -> list[str]:
     """Версии приложения, сохранённые перед обновлением (кроме текущей)."""
-    vers = {p.stem.removeprefix("ZapretGUI-") for p in app_backup_dir().glob("ZapretGUI-*.exe")}
+    vers = {_strip_prefix(p.stem, "ZapretGUI-") for p in app_backup_dir().glob("ZapretGUI-*.exe")}
     vers.discard(VERSION)
     return sorted(vers, key=parse_ver, reverse=True)
 
@@ -399,7 +521,7 @@ def list_app_backups() -> list[str]:
 def _backup_current_app() -> None:
     shutil.copy2(sys.executable, app_backup_dir() / f"ZapretGUI-{VERSION}.exe")
     files = sorted(app_backup_dir().glob("ZapretGUI-*.exe"),
-                   key=lambda p: parse_ver(p.stem.removeprefix("ZapretGUI-")), reverse=True)
+                   key=lambda p: parse_ver(_strip_prefix(p.stem, "ZapretGUI-")), reverse=True)
     for p in files[MAX_APP_BACKUPS:]:
         p.unlink(missing_ok=True)
 
@@ -450,7 +572,7 @@ for ($i = 0; $i -lt 60; $i++) {{
     catch {{ Start-Sleep -Milliseconds 500 }}
 }}
 Start-Process -FilePath $dst
-Remove-Item -LiteralPath $PSCommandPath -Force
+Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force
 """
     ps1 = Path(tempfile.gettempdir()) / "zapretgui-update.ps1"
     ps1.write_text(script, encoding="utf-8-sig")
@@ -458,6 +580,221 @@ Remove-Item -LiteralPath $PSCommandPath -Force
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(ps1)],
         creationflags=NO_WINDOW | 0x200, close_fds=True,  # 0x200 = CREATE_NEW_PROCESS_GROUP
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# ---------- официальные списки (Flowseal/zapret-discord-youtube, папка lists) ----------
+LISTS_API = f"https://api.github.com/repos/{REPO}/contents/lists?ref=main"
+
+
+def update_lists(log) -> int:
+    """Скачивает актуальные списки из официального репозитория в release/lists.
+    Файлы *-user.txt не трогаем. Прежняя версия изменённого файла сохраняется как <имя>.bak.
+    Возвращает число обновлённых файлов."""
+    req = urllib.request.Request(LISTS_API, headers={**UA, "Accept": "application/vnd.github+json"})
+    with gh_open(req, 15) as r:
+        items = json.load(r)
+    if not isinstance(items, list):
+        raise ValueError("GitHub вернул неожиданный ответ (возможно, превышен лимит запросов)")
+    lists = release_dir() / "lists"
+    lists.mkdir(parents=True, exist_ok=True)
+    changed = 0
+    for it in items:
+        name = it.get("name", "")
+        if it.get("type") != "file" or not name.endswith(".txt") or name.endswith("-user.txt") \
+                or not it.get("download_url"):
+            continue
+        with gh_open(urllib.request.Request(it["download_url"], headers=UA), 30) as r:
+            data = r.read()
+        if not data.strip():
+            continue  # пустой ответ не должен затирать рабочий список
+        target = lists / name
+        old = target.read_bytes() if target.exists() else b""
+        if old == data:
+            continue
+        if old.strip():
+            shutil.copy2(target, target.with_name(name + ".bak"))
+        tmp = target.with_name(name + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(str(tmp), str(target))
+        changed += 1
+        log(f"Список обновлён: {name}")
+    CFG["lists_updated"] = time.strftime("%d.%m.%Y %H:%M")
+    CFG["lists_checked"] = time.time()
+    save()
+    return changed
+
+
+def lists_due() -> bool:
+    """Пора ли автоматически обновить списки (раз в 12 часов)."""
+    return bool(CFG.get("lists_auto_update")) and time.time() - float(CFG.get("lists_checked") or 0) > 12 * 3600
+
+
+# ---------- диагностика ----------
+def windows_name() -> str:
+    v = getattr(sys, "getwindowsversion", None)
+    if v is None:
+        return sys.platform
+    v = v()
+    if v.major == 10:
+        return f"Windows {'11' if v.build >= 22000 else '10'} (сборка {v.build})"
+    names = {(6, 1): "Windows 7", (6, 2): "Windows 8", (6, 3): "Windows 8.1"}
+    return f"{names.get((v.major, v.minor), 'Windows')} ({v.major}.{v.minor}, сборка {v.build})"
+
+
+def diagnose() -> list:
+    """Проверка системы: список (статус, текст). Статус: True = хорошо, False = проблема, None = заметка."""
+    out = []
+    out.append((None, f"Система: {windows_name()}, приложение {VERSION}"))
+    try:
+        out.append((bool(ctypes.windll.shell32.IsUserAnAdmin()), "Права администратора"))
+    except Exception:
+        out.append((False, "Права администратора: не удалось проверить"))
+    rel = release_dir()
+    out.append((is_installed(), f"zapret установлен: {rel}"))
+    bin_names = {p.name.lower() for p in (rel / "bin").glob("*")} if (rel / "bin").exists() else set()
+    out.append(("winws.exe" in bin_names, "bin\\winws.exe"))
+    has_dll = "windivert.dll" in bin_names
+    has_sys = "windivert64.sys" in bin_names
+    out.append((has_dll and has_sys, "WinDivert.dll и WinDivert64.sys в bin"))
+    if not has_dll:
+        out.append((False, "bin\\WinDivert.dll отсутствует — часто удаляет антивирус. Добавь папку в исключения и переустанови zapret."))
+    if not has_sys:
+        out.append((False, "bin\\WinDivert64.sys отсутствует — часто удаляет антивирус. Добавь папку в исключения и переустанови zapret."))
+    for name in ("list-general.txt", "ipset-all.txt"):
+        p = rel / "lists" / name
+        size = p.stat().st_size if p.exists() else 0
+        out.append((size > 0, f"lists\\{name}: {size} байт" if size else f"lists\\{name}: пусто или нет (кнопка «Обновить списки»)"))
+    # Отдельная диагностика WinDivert
+    for drv in ("WinDivert", "WinDivert14"):
+        try:
+            q = subprocess.run(["sc", "query", drv], capture_output=True, text=True,
+                               creationflags=NO_WINDOW, timeout=10).stdout
+            if "RUNNING" in q:
+                out.append((True, f"Драйвер {drv}: работает"))
+            elif "STOPPED" in q:
+                out.append((None, f"Драйвер {drv}: остановлен (нормально, если обход выключен)"))
+            elif "1060" in q or "does not exist" in q.lower() or "не существует" in q.lower():
+                out.append((None, f"Драйвер {drv}: не установлен (появится при первом успешном запуске)"))
+            else:
+                out.append((None, f"Драйвер {drv}: {q.strip().splitlines()[-1] if q.strip() else 'неизвестное состояние'}"))
+        except Exception as e:
+            out.append((False, f"Не удалось опросить драйвер {drv}: {e}"))
+    # Проверка, не заблокирован ли файл антивирусом (попытка открыть на чтение)
+    for fname in ("winws.exe", "windivert.dll", "windivert64.sys"):
+        p = rel / "bin" / fname
+        if p.exists():
+            try:
+                with open(p, "rb") as f:
+                    f.read(64)
+            except PermissionError:
+                out.append((False, f"bin\\{fname} заблокирован (PermissionError) — почти наверняка антивирус. Добавь папку в исключения."))
+            except OSError as e:
+                out.append((False, f"bin\\{fname}: ошибка доступа ({e})"))
+    try:
+        with gh_open(urllib.request.Request("https://api.github.com/rate_limit", headers=UA), 10):
+            out.append((True, "GitHub доступен"))
+    except Exception as e:
+        out.append((False, f"GitHub недоступен: {e}"))
+    if is_installed() and CFG.get("strategy"):
+        try:
+            ok, text = test_launch(CFG["strategy"])
+            out.append((ok, f"Пробный запуск «{CFG['strategy']}»: {text}"))
+        except Exception as e:
+            out.append((False, f"Пробный запуск не удался: {e}"))
+    v = getattr(sys, "getwindowsversion", None)
+    if v is not None and (v().major, v().minor) == (6, 1):
+        out.append((None, "Windows 7: нужны обновления KB3033929 и KB4474419, а в zapret\\bin нужно заменить WinDivert.dll "
+                          "и WinDivert64.sys файлами из папки win7 репозитория bol-van/zapret-win-bundle"))
+        if "PySide2" not in sys.modules:
+            out.append((False, "Запущена не Win7-версия приложения (ZapretGUI-Win7.exe)"))
+    return out
+
+
+# ---------- почему не запустилось ----------
+# Коды ошибок Windows, которые winws печатает вместе с «windivert: ...»
+WINDIVERT_CODES = {
+    5: "Нет доступа к драйверу WinDivert (код 5). Программа должна работать от администратора; "
+       "проверь, что антивирус или защита Windows не блокируют WinDivert.",
+    2: "Не найден файл драйвера WinDivert64.sys (код 2). Скорее всего, его удалил антивирус: "
+       "добавь папку программы в исключения и нажми «Скачать и установить» в разделе zapret.",
+    3: "Не найден путь к драйверу WinDivert (код 3): переустанови zapret кнопкой «Скачать и установить».",
+    87: "WinDivert не принял фильтр (код 87): стратегия не подходит к этой версии winws, выбери другую "
+        "или обнови zapret.",
+    577: "Windows не принимает подпись драйвера WinDivert (код 577). На Windows 7 нужны обновления "
+         "KB3033929 и KB4474419 и файлы WinDivert из папки win7 (zapret-win-bundle).",
+    1058: "Служба WinDivert отключена (код 1058): включи её или перезагрузи компьютер.",
+    1060: "Служба WinDivert не установилась (код 1060): запусти от администратора и повтори.",
+    1275: "Windows заблокировала загрузку драйвера WinDivert (код 1275). Проверь «Изоляцию ядра» → "
+          "«Целостность памяти» и Smart App Control, а также антивирус.",
+}
+EXIT_CODES = {
+    0xC0000135: "Не найдена системная библиотека: поставь Microsoft Visual C++ Redistributable 2015-2022 (x64).",
+    0xC000007B: "Неверная разрядность библиотеки: нужен 64-разрядный Windows и Visual C++ Redistributable x64.",
+}
+
+
+def bin_problems() -> list[str]:
+    """Проверяет, что нужные файлы на месте (их часто удаляет антивирус)."""
+    b = release_dir() / "bin"
+    names = {p.name.lower() for p in b.glob("*")} if b.exists() else set()
+    out = []
+    for want in ("winws.exe", "windivert.dll", "windivert64.sys"):
+        if want not in names:
+            out.append(f"bin\\{want} не найден: скорее всего, его удалил антивирус. Добавь папку программы "
+                       "в исключения и нажми «Скачать и установить» в разделе zapret.")
+    return out
+
+
+def explain_output(text: str, returncode: int | None = None) -> str:
+    """По тексту, который напечатал winws, пытается объяснить причину. Пустая строка = не поняли."""
+    low = (text or "").lower()
+    m = re.search(r"windivert[^\n]*?\(\s*(\d+)\s*\)", low) or re.search(r"error[^\n]*?\(\s*(\d+)\s*\)", low)
+    if m and int(m.group(1)) in WINDIVERT_CODES:
+        return WINDIVERT_CODES[int(m.group(1))]
+    if returncode is not None and (returncode & 0xFFFFFFFF) in EXIT_CODES:
+        return EXIT_CODES[returncode & 0xFFFFFFFF]
+    if "could not read ^!" in low or "could not read !" in low:
+        return "Ошибка экранирования аргументов BAT: обнови приложение до исправленной версии и повтори запуск стратегии."
+    if ("hostlist" in low or "ipset" in low) and any(w in low for w in ("cannot", "failed", "open", "access")):
+        return "winws не смог открыть файл списка: нажми «Обновить списки с GitHub» или переустанови zapret."
+    if any(w in low for w in ("unknown option", "invalid parameter", "unrecognized", "unknown parameter")):
+        return "Эта стратегия не подходит к установленной версии winws: выбери другую или обнови zapret."
+    return ""
+
+
+def test_launch(strategy: str, seconds: float = 4.0) -> tuple[bool, str]:
+    """Запускает winws на несколько секунд и возвращает (запустился, пояснение). Работающий обход не трогает."""
+    problems = bin_problems()
+    if problems:
+        return False, " ".join(problems)
+    rel = release_dir()
+    args = parse_bat(rel / strategy)
+    if not args:
+        return False, f"Не удалось прочитать параметры из {strategy}: выбери другую стратегию."
+    if is_running():
+        return True, "winws сейчас работает"
+    ensure_lists(args)
+    apply_profiles()
+    si = None
+    try:
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0
+    except AttributeError:
+        pass
+    proc = subprocess.Popen(f'"{rel / "bin" / "winws.exe"}" {args}', cwd=str(rel), creationflags=NO_WINDOW,
+                            startupinfo=si, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    try:
+        out, _ = proc.communicate(timeout=seconds)
+    except subprocess.TimeoutExpired:  # не завершился сам: значит, запустился
+        proc.kill()
+        proc.communicate()
+        return True, "winws запускается нормально"
+    text = out.decode("utf-8", errors="replace").strip()
+    hint = explain_output(text, proc.returncode)
+    tail = " | ".join(text.splitlines()[-3:]) if text else f"winws завершился с кодом {proc.returncode}"
+    return False, (hint + "  [" + tail + "]") if hint else tail
 
 
 # ---------- запуск / остановка ----------
@@ -471,9 +808,27 @@ def strategies() -> list[str]:
 
 
 def is_running() -> bool:
+    """True, если процесс winws.exe жив.
+    Сначала смотрим дескриптор LAST_PROC (если прямой запуск и он ещё наш),
+    затем tasklist — чтобы ловить и запуск через .bat, и чужие экземпляры."""
+    global LAST_PROC
+    if LAST_PROC is not None:
+        try:
+            if LAST_PROC.poll() is None:
+                # Процесс, который мы запустили, ещё жив.
+                # Для прямого запуска это и есть winws.exe; для .bat — cmd,
+                # но cmd обычно быстро завершается, поэтому ниже всё равно
+                # проверяем tasklist.
+                if MODE.startswith("прямой"):
+                    return True
+            else:
+                LAST_PROC = None  # уже умер — не держим мёртвый дескриптор
+        except Exception:
+            LAST_PROC = None
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq winws.exe", "/NH"],
-                             capture_output=True, text=True, creationflags=NO_WINDOW).stdout
+                             capture_output=True, text=True, creationflags=NO_WINDOW,
+                             timeout=5).stdout
         return "winws.exe" in out.lower()
     except Exception:
         return False
@@ -508,6 +863,11 @@ def parse_bat(bat: Path) -> str | None:
     args = re.sub(r"%~?[A-Za-z0-9_]+%?", lambda m: table.get(m.group(0).lower(), m.group(0)), args)
     if re.search(r"%[A-Za-z~]", args):  # осталась неизвестная переменная
         return None
+    # В BAT символ ^ экранирует спецсимволы cmd.exe. При прямом Popen(shell=False)
+    # cmd.exe не обрабатывает аргументы, поэтому winws получал буквальный ^! и
+    # пытался открыть его как имя файла (ошибка «could not read ^!»).
+    # Снимаем только экранирование cmd-метасимволов, не затрагивая обычные каретки.
+    args = re.sub(r"\^([!^&|<>()])", r"\1", args)
     return args
 
 
@@ -532,14 +892,17 @@ def ensure_lists(args: str = "") -> None:
 
 
 def start(strategy: str, force_bat: bool = False) -> str:
-    """Запускает обход скрытно (без окна и значка на панели задач)."""
+    """Запускает обход скрытно (без окна и значка на панели задач).
+    Всегда останавливает предыдущий экземпляр и запускает заново —
+    иначе смена стратегии/профилей не применяется."""
     global LAST_PROC, MODE
     stop(full=False)
     rel = release_dir()
     args = parse_bat(rel / strategy)
     ensure_lists(args or "")
     apply_profiles()
-    log = open(base_dir() / "winws.log", "wb")
+    direct = bool(args) and not force_bat
+    log = open(base_dir() / ("winws.log" if direct else "winws-bat.log"), "wb")  # у каждого способа свой журнал
     si = None
     try:
         si = subprocess.STARTUPINFO()
@@ -549,23 +912,35 @@ def start(strategy: str, force_bat: bool = False) -> str:
         pass
     common = dict(cwd=str(rel), creationflags=NO_WINDOW, startupinfo=si,
                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
-    if args and not force_bat:
-        LAST_PROC = subprocess.Popen(f'"{rel / "bin" / "winws.exe"}" {args}', **common)
-        MODE = "прямой запуск winws"
-    else:
-        LAST_PROC = subprocess.Popen(["cmd", "/c", strategy], **common)
-        MODE = "через .bat (скрытно)"
+    try:
+        if direct:
+            LAST_PROC = subprocess.Popen(f'"{rel / "bin" / "winws.exe"}" {args}', **common)
+            MODE = "прямой запуск winws"
+        else:
+            LAST_PROC = subprocess.Popen(["cmd", "/c", strategy], **common)
+            MODE = "через .bat (скрытно)"
+    finally:
+        log.close()  # у дочернего процесса остаётся своя копия дескриптора
     return MODE
 
 
 def start_error() -> str:
-    """Если winws сразу завершился, возвращает конец его журнала."""
-    if LAST_PROC is not None and MODE.startswith("прямой") and LAST_PROC.poll() is not None:
+    """Возвращает вывод неудачного запуска и для прямого запуска, и для BAT."""
+    if LAST_PROC is not None and LAST_PROC.poll() is not None:
+        # cmd.exe может завершиться сразу после start, оставив winws работать.
+        # В этом случае наличие winws проверяет вызывающий код; журнал нужен,
+        # только если процесса winws действительно нет.
+        filename = "winws-bat.log" if MODE.startswith("через") else "winws.log"
         try:
-            lines = (base_dir() / "winws.log").read_text(encoding="utf-8", errors="ignore").strip().splitlines()
-            return "\n".join(lines[-5:]) or f"winws завершился с кодом {LAST_PROC.returncode}"
+            lines = (base_dir() / filename).read_text(encoding="utf-8", errors="ignore").strip().splitlines()
+            useful = [line for line in lines if line.strip()]
+            if useful:
+                return "\n".join(useful[-8:])
+            if LAST_PROC.returncode not in (0, None):
+                return f"Процесс запуска завершился с кодом {LAST_PROC.returncode}"
         except OSError:
-            return f"winws завершился с кодом {LAST_PROC.returncode}"
+            if LAST_PROC.returncode not in (0, None):
+                return f"Процесс запуска завершился с кодом {LAST_PROC.returncode}"
     return ""
 
 
@@ -620,7 +995,7 @@ def normalize_url(text: str) -> str:
 
 
 def site_name(url: str) -> str:
-    return urllib.parse.urlparse(url).netloc.removeprefix("www.") or url
+    return _strip_prefix(urllib.parse.urlparse(url).netloc, "www.") or url
 
 
 def probe(url: str) -> dict:
@@ -636,11 +1011,11 @@ def probe(url: str) -> dict:
     return {"ok": True, "code": code, "ms": int((time.perf_counter() - t0) * 1000)}
 
 
-def add_site(text: str) -> bool:
+def add_site(text: str, name: str | None = None) -> bool:
     url = normalize_url(text)
     if not text.strip() or any(s["url"] == url for s in CFG["sites"]):
         return False
-    CFG["sites"].append({"name": site_name(url), "url": url})
+    CFG["sites"].append({"name": name or site_name(url), "url": url})
     save()
     return True
 

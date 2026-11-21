@@ -3,7 +3,13 @@
 ; ярлыки в меню «Пуск» и на рабочем столе, запись в «Установленных приложениях».
 ; В одной папке: ZapretGUI.exe + release + backup + downloads + config.json
 #ifndef AppVer
-  #define AppVer "1.0.2"
+  #define AppVer "1.0.2.1"
+#endif
+#ifndef ExeSrc
+  #define ExeSrc "dist\ZapretGUI.exe"
+#endif
+#ifndef OutName
+  #define OutName "ZapretGUI-Setup"
 #endif
 
 [Setup]
@@ -17,7 +23,7 @@ DefaultGroupName=Zapret GUI
 DisableProgramGroupPage=yes
 DisableDirPage=no
 OutputDir=installer
-OutputBaseFilename=ZapretGUI-Setup
+OutputBaseFilename={#OutName}
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\ZapretGUI.exe
 Compression=lzma2
@@ -39,7 +45,7 @@ Name: "{app}\downloads"
 Name: "{app}\profiles"
 
 [Files]
-Source: "dist\ZapretGUI.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ExeSrc}"; DestDir: "{app}"; DestName: "ZapretGUI.exe"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Zapret GUI"; Filename: "{app}\ZapretGUI.exe"
