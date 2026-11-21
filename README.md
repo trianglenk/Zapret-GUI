@@ -1,5 +1,5 @@
  <div align="center">
-  <img src="assets/icon.png" alt="лого" width="40%">
+  <img src="assets/icon.png" alt="лого" width="34%">
 </div>
 # Zapret GUI
 
@@ -11,7 +11,7 @@
 
 ## Возможности
  <div align="center">
-  <img src="assets/banner.png" alt="бан" width="70%">
+  <img src="assets/banner.png" alt="бан" width="75%">
 </div>
 
 
