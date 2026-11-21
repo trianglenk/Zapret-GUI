@@ -1,3 +1,4 @@
+
 # Zapret GUI
 
 **Графическая оболочка для Windows для управления `zapret` без ручного редактирования батников и конфигов.**
@@ -7,6 +8,10 @@
 ![Version](https://img.shields.io/badge/Version-1.0.2-green)
 
 ## Возможности
+ <div align="center">
+  <img src="assets/banner.png" alt="бан" width="48%">
+</div>
+
 
 - Запуск, остановка и перезапуск службы/процесса `zapret`.
 - Переключение профилей и стратегий обхода.
