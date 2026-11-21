@@ -2,12 +2,13 @@
   <img src="assets/icon.png" alt="лого" width="30%">
 </div>
 # Zapret GUI
-
+ <div align="center">
 **Графическая оболочка для Windows для управления `zapret` без ручного редактирования батников и конфигов.**
 
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
 ![Python](https://img.shields.io/badge/Python-3.11-yellow)
 ![Version](https://img.shields.io/badge/Version-1.0.2-green)
+</div>
 
 ## Возможности
  <div align="center">
