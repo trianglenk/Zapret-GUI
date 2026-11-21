@@ -1,9 +1,10 @@
  <div align="center">
-  <img src="assets/icon.png" alt="лого" width="30%">
+  <img src="assets/icon.png" alt="лого" width="28%">
 </div>
-# Zapret GUI
+
  <div align="center">
-**Графическая оболочка для Windows для управления `zapret` без ручного редактирования батников и конфигов.**
+  Zapret GUI
+**Графическая оболочка для Windows для управления zapret без ручного редактирования батников и конфигов.**
 
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
 ![Python](https://img.shields.io/badge/Python-3.11-yellow)
@@ -12,7 +13,7 @@
 
 ## Возможности
  <div align="center">
-  <img src="assets/banner.png" alt="бан" width="80%">
+  <img src="assets/banner.png" alt="бан" width="82%">
 </div>
 
 
