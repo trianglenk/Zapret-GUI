@@ -1,73 +1,39 @@
 # Zapret GUI
-  
-  **Windows-приложение с графическим интерфейсом для управления zapret**
 
-  ![Platform](https://shields.io)
-  ![Python](https://shields.io)
-  ![Version](https://shields.io)
-  ![License](https://shields.io)
-</div>
+**Графическая оболочка для Windows для управления `zapret` без ручного редактирования батников и конфигов.**
 
+![Platform](https://img.shields.io/badge/Platform-Windows-blue)
+![Python](https://img.shields.io/badge/Python-3.11-yellow)
+![Version](https://img.shields.io/badge/Version-1.0.2-green)
 
----
+## Возможности
 
-## О приложении
-  <img src="assets/banner.png" alt="Zapret GUI Banner" width="100%">
-**Zapret GUI** — удобная графическая оболочка для Windows, позволяющая управлять работой `zapret` без необходимости вручную редактировать батники и конфигурационные файлы.
+- Запуск, остановка и перезапуск службы/процесса `zapret`.
+- Переключение профилей и стратегий обхода.
+- Настройка параметров приложения.
+- Проверка и установка обновлений через GitHub Releases.
 
-### Основные возможности:
-* Запуск, остановка и перезапуск службы/процесса `zapret`.
-* Удобное переключение между профилями и стратегиями обхода.
-* Гибкая настройка параметров приложения.
-* Встроенная проверка и установка обновлений через GitHub Releases.
-
----
-
-## Скриншоты интерфейса
+## Скриншоты
 
 <div align="center">
-  <img src="screenshots/main.png" alt="Главное окно Zapret GUI" width="48%">
-  <img src="screenshots/settings.png" alt="Настройки Zapret GUI" width="48%">
+  <img src="screenshots/main.png" alt="Главное окно" width="48%">
+  <img src="screenshots/settings.png" alt="Настройки" width="48%">
 </div>
 
----
+## Установка
 
-## Установка готовой версии
+1. Откройте **[Releases](https://github.com/trianglenk/Zapret-GUI/releases)**.
+2. Скачайте `ZapretGUI-Setup.exe` из последнего релиза.
+3. Запустите установщик от имени администратора и следуйте инструкциям.
 
-1. Перейдите в раздел **[Releases](https://github.com)** этого репозитория.
-2. Скачайте файл `ZapretGUI-Setup.exe` из последнего релиза.
-3. Запустите установщик и следуйте инструкциям на экране (при запросе предоставьте права администратора).
+> Для автообновления укажите в настройках репозиторий: `trianglenk/Zapret-GUI`.
 
-> **Примечание:** Для работы встроенного автообновления в настройках приложения укажите репозиторий в формате `trianglenk/Zapret-GUI`.
+## Сборка из исходников
 
----
+Установите:
 
-## Локальная сборка из исходников
-
-Для самостоятельной сборки `.exe` и установщика установите:
-
-1. **Python 3.11 x64** — [скачать с python.org](https://www.python.org/downloads/windows/) *(при установке обязательно отметьте галочку **Add Python to PATH**)*.
-2. **Inno Setup 6** — [скачать с jrsoftware.org](https://jrsoftware.org) или установить через терминал:
+1. **Python 3.11 x64** — [python.org](https://www.python.org/downloads/windows/)  
+   При установке включите **Add Python to PATH**.
+2. **Inno Setup 6** — [jrsoftware.org](https://jrsoftware.org) или:
    ```powershell
    winget install JRSoftware.InnoSetup
-   ```
-3. **Git for Windows** — [скачать с git-scm.com](https://git-scm.com/download/win).
-
-### Процесс сборки:
-1. Клонируйте репозиторий или скачайте исходный код.
-2. Откройте папку проекта и запустите `build.bat`.
-3. Дождитесь завершения — готовый установщик появится в папке `installer/ZapretGUI-Setup.exe`.
-
----
-
-
-GitHub Actions автоматически возьмёт номер версии из тега, соберёт `ZapretGUI.exe`, упакует его в `ZapretGUI-Setup.exe` и опубликует релиз в разделе **Releases**.
-
----
-
-## Структура проекта
-
-* `main.py` — графический интерфейс приложения.
-* `core.py` — основная логика работы с `zapret`.
-* `version.py` — информация о текущей версии (**1.0.2**).
-* `requirements.txt` — список зависимостей Python.
