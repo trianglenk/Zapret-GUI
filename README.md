@@ -1,4 +1,6 @@
-
+ <div align="center">
+  <img src="assets/icon.png" alt="лого" width="70%">
+</div>
 # Zapret GUI
 
 **Графическая оболочка для Windows для управления `zapret` без ручного редактирования батников и конфигов.**
@@ -9,7 +11,7 @@
 
 ## Возможности
  <div align="center">
-  <img src="assets/banner.png" alt="бан" width="48%">
+  <img src="assets/banner.png" alt="бан" width="60%">
 </div>
 
 
