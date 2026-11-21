@@ -13,7 +13,7 @@
 
 ## Возможности
  <div align="center">
-  <img src="assets/banner.png" alt="бан" width="82%">
+  <img src="assets/banner.png" alt="бан" width="85%">
 </div>
 
 
