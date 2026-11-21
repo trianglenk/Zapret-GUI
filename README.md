@@ -1,5 +1,5 @@
  <div align="center">
-  <img src="assets/icon.png" alt="лого" width="34%">
+  <img src="assets/icon.png" alt="лого" width="30%">
 </div>
 # Zapret GUI
 
@@ -11,7 +11,7 @@
 
 ## Возможности
  <div align="center">
-  <img src="assets/banner.png" alt="бан" width="75%">
+  <img src="assets/banner.png" alt="бан" width="80%">
 </div>
 
 
@@ -23,8 +23,8 @@
 ## Скриншоты
 
 <div align="center">
-  <img src="screenshots/main.png" alt="Главное окно" width="48%">
-  <img src="screenshots/settings.png" alt="Настройки" width="48%">
+  <img src=".github/глав-стр.png" alt="Главное окно" width="48%">
+  <img src=".github/Настройки.png" alt="Настройки" width="48%">
 </div>
 
 ## Установка
