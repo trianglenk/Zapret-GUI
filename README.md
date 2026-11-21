@@ -44,3 +44,30 @@
 2. **Inno Setup 6** — [jrsoftware.org](https://jrsoftware.org) или:
    ```powershell
    winget install JRSoftware.InnoSetup
+    Git for Windows — git-scm.com.
+
+Сборка:
+
+    Клонируйте репозиторий или скачайте исходники.
+
+    Запустите build.bat.
+
+    Готовый установщик появится в installer/ZapretGUI-Setup.exe.
+
+CI
+
+GitHub Actions берёт версию из тега, собирает ZapretGUI.exe, упаковывает в ZapretGUI-Setup.exe и публикует релиз в Releases.
+Структура проекта
+
+    main.py — графический интерфейс.
+
+    core.py — логика работы с zapret.
+
+    version.py — версия приложения (1.0.2).
+
+    requirements.txt — зависимости Python.
+
+text
+
+
+Исправлены ссылки на актуальный репозиторий, заменены пустые Shields, убраны повторы и сокращены разделы установки/сборки.
