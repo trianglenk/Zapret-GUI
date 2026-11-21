@@ -3,7 +3,7 @@
 </div>
 
  <div align="center">
-  Zapret GUI
+  Zapret GUI <br>
 **Графическая оболочка для Windows для управления zapret без ручного редактирования батников и конфигов.**
 
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue)
