@@ -80,9 +80,16 @@ QCheckBox {{ spacing: 10px; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 6px; border: 1px solid {c['DIS']};
     background: {c['BG']}; }}
 QCheckBox::indicator:checked {{ background: {c['ACC1']}; border-color: {c['ACC1']}; }}
-QScrollBar:vertical {{ background: transparent; width: 8px; }}
-QScrollBar::handle:vertical {{ background: {c['OFF']}; border-radius: 4px; min-height: 30px; }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QScrollBar:vertical {{ background: transparent; width: 6px; margin: 0; }}
+QScrollBar::handle:vertical {{ background: {c['OFF']}; border-radius: 3px; min-height: 32px; }}
+QScrollBar::handle:vertical:hover {{ background: {c['DIS']}; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; width: 0; }}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+QScrollBar:horizontal {{ background: transparent; height: 6px; margin: 0; }}
+QScrollBar::handle:horizontal {{ background: {c['OFF']}; border-radius: 3px; min-width: 32px; }}
+QScrollBar::handle:horizontal:hover {{ background: {c['DIS']}; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ height: 0; width: 0; }}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: transparent; }}
 QSlider::groove:horizontal {{ height: 6px; background: {c['OFF']}; border-radius: 3px; }}
 QSlider::handle:horizontal {{ width: 18px; height: 18px; margin: -6px 0; background: {c['ACC1']};
     border-radius: 9px; border: 2px solid {c['SURFACE']}; }}
@@ -1044,14 +1051,19 @@ class MainWindow(QMainWindow):
         self.root_lay.setSpacing(0)
 
         self.stack = QStackedWidget()
-        self.stack.setMaximumWidth(920)
         self.content = QWidget()
         self.content.setObjectName("page")
-        cl = QHBoxLayout(self.content)
-        cl.setContentsMargins(0, 0, 0, 0)
-        cl.addStretch(1)
-        cl.addWidget(self.stack, 100)
-        cl.addStretch(1)
+        self.content_lay = QHBoxLayout(self.content)
+        self.content_lay.setContentsMargins(0, 0, 0, 0)
+        self.content_lay.setSpacing(0)
+        # боковые растяжки: в узком окне центрируют, в широком почти исчезают
+        self._side_l = QWidget()
+        self._side_r = QWidget()
+        self._side_l.setMinimumWidth(0)
+        self._side_r.setMinimumWidth(0)
+        self.content_lay.addWidget(self._side_l, 1)
+        self.content_lay.addWidget(self.stack, 20)
+        self.content_lay.addWidget(self._side_r, 1)
 
         self.nav = QWidget()
         self.nav.setObjectName("nav")
@@ -1202,6 +1214,9 @@ class MainWindow(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         body = QWidget()
         body.setObjectName("scrollbody")
         self.sites_lay = QVBoxLayout(body)
@@ -1301,6 +1316,9 @@ class MainWindow(QMainWindow):
     def build_more(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         body = QWidget()
         body.setObjectName("scrollbody")
         body.setProperty("pagebody", True)
@@ -1625,7 +1643,7 @@ class MainWindow(QMainWindow):
             self.apply_layout(compact)
 
     def apply_layout(self, compact: bool):
-        """Узкое окно: панель вкладок парит снизу (как в телефоне). Широкое: колонка слева."""
+        """Узкое окно: панель вкладок снизу. Широкое: колонка слева, контент растягивается."""
         self.compact = compact
         lay, nl = self.root_lay, self.nav_lay
         lay.removeWidget(self.nav)
@@ -1636,6 +1654,11 @@ class MainWindow(QMainWindow):
             b.vertical = not compact
             b.update()
         if compact:
+            # телефонный вид: контент по центру, ограничение ширины
+            self.stack.setMaximumWidth(560)
+            self.content_lay.setStretch(0, 1)
+            self.content_lay.setStretch(1, 0)
+            self.content_lay.setStretch(2, 1)
             lay.setDirection(QBoxLayout.TopToBottom)
             lay.addWidget(self.content, 1)
             lay.addWidget(self.nav)
@@ -1650,6 +1673,11 @@ class MainWindow(QMainWindow):
             self.nav.setMinimumSize(0, 82)
             self.nav.setMaximumSize(16777215, 82)
         else:
+            # широкий / полный экран: контент занимает почти всю ширину
+            self.stack.setMaximumWidth(16777215)
+            self.content_lay.setStretch(0, 1)
+            self.content_lay.setStretch(1, 40)
+            self.content_lay.setStretch(2, 1)
             lay.setDirection(QBoxLayout.LeftToRight)
             lay.addWidget(self.nav)
             lay.addWidget(self.content, 1)
