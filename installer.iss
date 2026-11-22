@@ -53,7 +53,7 @@ Name: "{autodesktop}\Zapret GUI"; Filename: "{app}\ZapretGUI.exe"; Tasks: deskto
 
 [Run]
 Filename: "schtasks"; Parameters: "/create /tn ZapretGUI /tr ""\""{app}\ZapretGUI.exe\"" --minimized"" /sc onlogon /rl highest /f"; Flags: runhidden; Tasks: autostart
-Filename: "{app}\ZapretGUI.exe"; Description: "Запустить Zapret GUI"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\ZapretGUI.exe"; Description: "Запустить Zapret GUI"; Flags: nowait postinstall skipifsilent runascurrentuser; WorkingDir: "{app}"
 
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/IM ZapretGUI.exe /F"; Flags: runhidden; RunOnceId: "KillApp"

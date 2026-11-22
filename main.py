@@ -13,7 +13,7 @@ from qt import (  # PySide6 (Windows 10/11) или PySide2 (Windows 7)
     QColor, QColorDialog, QComboBox, QEasingCurve, QFileDialog, QFont, QFrame, QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, QIcon, QInputDialog, QLabel, QLineEdit, QLinearGradient, QListWidget, QListWidgetItem,
     QLocalServer, QLocalSocket, QMainWindow, QMenu, QMessageBox, QObject, QPainter, QPen, QPixmap,
-    QPlainTextEdit, QPointF, QPropertyAnimation, QPushButton, QRectF, QScrollArea, QSize, QStackedWidget,
+    QPlainTextEdit, QPointF, QPropertyAnimation, QPushButton, QRectF, QScrollArea, QSize, QSlider, QStackedWidget,
     QSystemTrayIcon, Qt, QTimer, QVariantAnimation, QVBoxLayout, QWidget,
     Signal,
 )
@@ -83,6 +83,11 @@ QCheckBox::indicator:checked {{ background: {c['ACC1']}; border-color: {c['ACC1'
 QScrollBar:vertical {{ background: transparent; width: 8px; }}
 QScrollBar::handle:vertical {{ background: {c['OFF']}; border-radius: 4px; min-height: 30px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+QSlider::groove:horizontal {{ height: 6px; background: {c['OFF']}; border-radius: 3px; }}
+QSlider::handle:horizontal {{ width: 18px; height: 18px; margin: -6px 0; background: {c['ACC1']};
+    border-radius: 9px; border: 2px solid {c['SURFACE']}; }}
+QSlider::sub-page:horizontal {{ background: {c['ACC1']}; border-radius: 3px; }}
+QSlider::add-page:horizontal {{ background: {c['OFF']}; border-radius: 3px; }}
 QToolTip {{ background: {c['SURFACE']}; color: {c['TEXT']}; border: 1px solid {c['BORDER']}; }}
 """
 
@@ -613,6 +618,102 @@ class ColorDot(QAbstractButton):
             p.setBrush(Qt.NoBrush)
             p.setPen(QPen(QColor(P["TEXT"]), 2))
             p.drawEllipse(QRectF(self.rect()).adjusted(2, 2, -2, -2))
+
+
+class FontSizeSlider(QWidget):
+    """Слайдер размера шрифта в стиле телефонов: Мелкий — Обычный — Крупный."""
+    changed = Signal(str)  # FONT_KEYS value
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(52)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(0, 2)
+        self.slider.setPageStep(1)
+        self.slider.setSingleStep(1)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(1)
+        self.slider.valueChanged.connect(self._on_value)
+        lay.addWidget(self.slider)
+        labels = QHBoxLayout()
+        labels.setContentsMargins(0, 0, 0, 0)
+        for text in ("Мелкий", "Обычный", "Крупный"):
+            lab = QLabel(text)
+            lab.setObjectName("muted")
+            lab.setAlignment(Qt.AlignCenter)
+            labels.addWidget(lab, 1)
+        lay.addLayout(labels)
+
+    def set_key(self, key: str):
+        idx = FONT_KEYS.index(key) if key in FONT_KEYS else 1
+        self.slider.blockSignals(True)
+        self.slider.setValue(idx)
+        self.slider.blockSignals(False)
+
+    def _on_value(self, value: int):
+        self.changed.emit(FONT_KEYS[max(0, min(2, value))])
+
+
+class CornerButton(QAbstractButton):
+    """Кнопка выбора углов: рисует прямоугольник с нужным скруглением."""
+
+    def __init__(self, key: str, title: str, radius: float):
+        super().__init__()
+        self.key = key
+        self.title = title
+        self.radius = radius
+        self.setCheckable(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(48)
+        self.setMinimumWidth(100)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(3, 3, -3, -3)
+        checked = self.isChecked()
+        p.setPen(QPen(QColor(P["ACC1"] if checked else P["BORDER"]), 2 if checked else 1))
+        p.setBrush(QColor(P["SEL"] if checked else P["BTN"]))
+        p.drawRoundedRect(r, self.radius, self.radius)
+        inner = r.adjusted(10, 10, -10, -10)
+        p.setPen(QPen(QColor(P["BORDER"]), 1))
+        p.setBrush(QColor(P["SURFACE"]))
+        ir = max(2.0, self.radius * 0.55)
+        p.drawRoundedRect(inner, ir, ir)
+        p.setPen(QColor(P["TEXT"] if checked else P["MUTED"]))
+        f = QFont(p.font())
+        f.setPointSizeF(max(8.0, P.get("FS", 10) * 0.9))
+        f.setBold(checked)
+        p.setFont(f)
+        p.drawText(r, Qt.AlignCenter, self.title)
+
+
+class CornerPicker(QWidget):
+    """Визуальный выбор углов: сразу видно, скруглённые или строгие."""
+    changed = Signal(str)  # CORNER_KEYS value
+
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(56)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        self.buttons = []
+        grp = QButtonGroup(self)
+        for key, title, radius in (("soft", "Мягкие", 14), ("sharp", "Строгие", 4)):
+            btn = CornerButton(key, title, radius)
+            btn.clicked.connect(lambda _=False, k=key: self.changed.emit(k))
+            grp.addButton(btn)
+            self.buttons.append(btn)
+            lay.addWidget(btn, 1)
+
+    def set_key(self, key: str):
+        for btn in self.buttons:
+            btn.setChecked(btn.key == key)
+            btn.update()
 
 
 class ThemePreview(QWidget):
@@ -1213,15 +1314,18 @@ class MainWindow(QMainWindow):
 
         c, cl = self.section_card("about", "О приложении")
         t = QLabel("Zapret GUI")
-        t.setStyleSheet("font-size: 16pt; font-weight: 700;")
+        t.setStyleSheet("font-size: 18pt; font-weight: 700; letter-spacing: -0.3px;")
         cl.addWidget(t)
-        ver = QLabel(f"Версия {core.VERSION}  ·  {core.windows_name()}  ·  {QT_API}")
+        ver = QLabel(f"Версия {core.VERSION}")
+        ver.setObjectName("muted")
         cl.addWidget(ver)
         repo = core.app_repo()
+        self.about_link = None
         if repo:
-            link = QLabel(f'<a href="https://github.com/{repo}">github.com/{repo}</a>')
-            link.setOpenExternalLinks(True)
-            cl.addWidget(link)
+            self.about_link = QLabel(f'<a href="https://github.com/{repo}" style="text-decoration:none;">github.com/{repo}</a>')
+            self.about_link.setOpenExternalLinks(True)
+            self.about_link.setStyleSheet(f"padding-top: 2px; color: {P['ACC1']};")
+            cl.addWidget(self.about_link)
         v.addWidget(c)
 
         c, cl = self.section_card("appearance", "Оформление")
@@ -1275,39 +1379,31 @@ class MainWindow(QMainWindow):
         agrid.addWidget(b_acc, (len(self.accent_dots)) // 8, (len(self.accent_dots)) % 8)
         cl.addLayout(agrid)
 
-        caption("ВИД")
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(8)
-        self.font_combo = QComboBox()
-        self.font_combo.addItems(["Мелкий", "Обычный", "Крупный"])
-        self.corner_combo = QComboBox()
-        self.corner_combo.addItems(["Мягкие", "Строгие"])
-        self.density_combo = QComboBox()
-        self.density_combo.addItems(["Компактная", "Обычная", "Просторная"])
-        self.font_combo.setCurrentIndex(FONT_KEYS.index(core.CFG["font_size"]))
-        self.corner_combo.setCurrentIndex(CORNER_KEYS.index(core.CFG["corners"]))
-        self.density_combo.setCurrentIndex(DENSITY_KEYS.index(core.CFG["density"]))
-        self.font_combo.currentIndexChanged.connect(lambda i: self.set_look("font_size", FONT_KEYS[i]))
-        self.corner_combo.currentIndexChanged.connect(lambda i: self.set_look("corners", CORNER_KEYS[i]))
-        self.density_combo.currentIndexChanged.connect(lambda i: self.set_look("density", DENSITY_KEYS[i]))
-        for r_, (label, combo) in enumerate([("Шрифт", self.font_combo), ("Углы", self.corner_combo),
-                                              ("Плотность", self.density_combo)]):
-            grid.addWidget(QLabel(label), r_, 0)
-            grid.addWidget(combo, r_, 1)
-        grid.setColumnStretch(1, 1)
-        cl.addLayout(grid)
+        caption("ШРИФТ")
+        self.font_slider = FontSizeSlider()
+        self.font_slider.set_key(core.CFG.get("font_size", "normal"))
+        self.font_slider.changed.connect(lambda k: self.set_look("font_size", k))
+        cl.addWidget(self.font_slider)
+
+        caption("УГЛЫ")
+        self.corner_picker = CornerPicker()
+        self.corner_picker.set_key(core.CFG.get("corners", "soft"))
+        self.corner_picker.changed.connect(lambda k: self.set_look("corners", k))
+        cl.addWidget(self.corner_picker)
 
         self.anim_cb = QCheckBox("Анимации интерфейса")
         self.anim_cb.setChecked(core.CFG["animations"])
         self.anim_cb.toggled.connect(self.on_anim_toggled)
         cl.addWidget(self.anim_cb)
+
+        caption("СТИЛЬ АНИМАЦИИ")
         self.animation_style_combo = QComboBox()
         self.animation_style_combo.addItems(["Плавная", "Быстрая", "Ненавязчивая"])
-        self.animation_style_combo.setCurrentIndex({"smooth": 0, "quick": 1, "subtle": 2}.get(core.CFG.get("animation_style", "smooth"), 0))
+        self.animation_style_combo.setCurrentIndex(
+            {"smooth": 0, "quick": 1, "subtle": 2}.get(core.CFG.get("animation_style", "smooth"), 0))
         self.animation_style_combo.currentIndexChanged.connect(self.on_animation_style_changed)
-        cl.addWidget(QLabel("Стиль анимации"))
         cl.addWidget(self.animation_style_combo)
+
         b_def = QPushButton("Сбросить оформление")
         b_def.clicked.connect(self.reset_look)
         cl.addWidget(b_def)
@@ -1583,6 +1679,11 @@ class MainWindow(QMainWindow):
         self.restart_btn.setIcon(make_icon("restart", P["TEXT"]))
         for b in self.nav_buttons + self.swatches:
             b.update()
+        if getattr(self, "corner_picker", None):
+            for b in self.corner_picker.buttons:
+                b.update()
+        if getattr(self, "about_link", None):
+            self.about_link.setStyleSheet(f"padding-top: 2px; color: {P['ACC1']};")
         self.rebuild_sites()
         self.apply_density()
         self.preview.update()
@@ -1623,6 +1724,15 @@ class MainWindow(QMainWindow):
         for sw in self.swatches:
             sw.setChecked(sw.key == cur)
         self.theme_name.setText("Как в системе" if cur == "auto" else THEMES.get(cur, THEMES["violet"])["NAME"])
+        if hasattr(self, "font_slider"):
+            self.font_slider.set_key(core.CFG.get("font_size", "normal"))
+        if hasattr(self, "corner_picker"):
+            self.corner_picker.set_key(core.CFG.get("corners", "soft"))
+        if hasattr(self, "animation_style_combo"):
+            self.animation_style_combo.blockSignals(True)
+            self.animation_style_combo.setCurrentIndex(
+                {"smooth": 0, "quick": 1, "subtle": 2}.get(core.CFG.get("animation_style", "smooth"), 0))
+            self.animation_style_combo.blockSignals(False)
         self.preview.set_patch(None)
 
     def set_section_default(self, key: str, collapsed: bool):
@@ -1637,6 +1747,24 @@ class MainWindow(QMainWindow):
     def on_animation_style_changed(self, index: int):
         core.CFG["animation_style"] = ["smooth", "quick", "subtle"][max(0, min(2, index))]
         core.save()
+        # короткая демонстрация выбранного стиля
+        if not anim_on():
+            return
+        style = core.CFG["animation_style"]
+        duration = {"quick": 120, "subtle": 90, "smooth": 240}.get(style, 220)
+        self._style_demo = QPropertyAnimation(self.preview, b"windowOpacity", self)
+        # preview не имеет windowOpacity, поэтому анимируем через временный эффект
+        fx = QGraphicsOpacityEffect(self.preview)
+        self.preview.setGraphicsEffect(fx)
+        self._style_demo = QPropertyAnimation(fx, b"opacity", self)
+        self._style_demo.setDuration(duration)
+        self._style_demo.setStartValue(0.35)
+        self._style_demo.setEndValue(1.0)
+        self._style_demo.setEasingCurve(
+            QEasingCurve.OutCubic if style == "smooth" else
+            QEasingCurve.OutQuad if style == "quick" else QEasingCurve.Linear)
+        self._style_demo.finished.connect(lambda: self.preview.setGraphicsEffect(None))
+        self._style_demo.start()
 
     def on_anim_toggled(self, on: bool):
         core.CFG["animations"] = on
@@ -1654,10 +1782,13 @@ class MainWindow(QMainWindow):
         core.CFG.update(theme="violet", accent="", font_size="normal", corners="soft", density="normal",
                         animations=True, animation_style="smooth")
         core.save()
-        self.font_combo.setCurrentIndex(FONT_KEYS.index("normal"))
-        self.corner_combo.setCurrentIndex(CORNER_KEYS.index("soft"))
-        self.density_combo.setCurrentIndex(DENSITY_KEYS.index("normal"))
+        if hasattr(self, "font_slider"):
+            self.font_slider.set_key("normal")
+        if hasattr(self, "corner_picker"):
+            self.corner_picker.set_key("soft")
         self.anim_cb.setChecked(True)
+        if hasattr(self, "animation_style_combo"):
+            self.animation_style_combo.setCurrentIndex(0)
         self.apply_theme("violet")
         self.sync_look_controls()
 
