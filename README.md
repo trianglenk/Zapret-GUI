@@ -43,10 +43,11 @@
 
 *Профили доменов: Telegram, Discord и собственные списки.*
 
-### Список сайтов
+### Список,сайтов
 
 <!-- Вставьте сюда изображение списка сайтов -->
 ![Список сайтов](assets/sites-list.png)
+Список сайтов](assets/sites-list.png)
 
 *Список сайтов: статус, время ответа и быстрые действия.*
 
@@ -98,20 +99,18 @@ python -m venv .venv
 
 Проще всего скриптом: подними VERSION в version.py, допиши CHANGELOG.md и запусти publish.bat. Он сделает коммит, отправит его в main и создаст тег v<версия>.
 
-Вручную:
+## Локальная сборка из исходников
 
-    Обнови CHANGELOG.md, сделай коммит и отправь его в main.
+Для самостоятельной сборки `.exe` и установщика установите:
 
-    Создай тег и отправь его:
+1. **Python 3.11 x64** — [скачать с python.org](https://www.python.org/downloads/windows/) *(при установке обязательно отметьте галочку **Add Python to PATH**)*.
+2. **Inno Setup 6** — [скачать с jrsoftware.org](https://jrsoftware.org) или установить через терминал:
+   ```powershell
+   winget install JRSoftware.InnoSetup
+   ```
+3. **Git for Windows** — [скачать с git-scm.com](https://git-scm.com/download/win).
 
-bash
 
-git tag v1.0.3
-git push origin v1.0.3
-
-Для пререлиза тег с суффиксом: v1.0.3-beta.1.
-
-    GitHub Actions соберёт ZapretGUI.exe, ZapretGUI-Win7.exe и установщики и опубликует релиз. Версия приложения берётся из тега.
 
 Лицензия
 
