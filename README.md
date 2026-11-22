@@ -52,7 +52,7 @@
 
 ![сайтов](assets/sites-list.png)
 
-### Настройки](assets/.png)
+### Настройки](assets/sd.png)
 
 ![Настройки](assets/sites-list.png)
 
