@@ -32,7 +32,7 @@
 ### Главное окно и Настройки
 
 <p>
-  <img src="ГлавноеокноZapretGUI.png" alt="Главное окно Zapret GUI" width="45%">
+  <img src="assets/ГлавноеокноZapretGUI.png" alt="Главное окно Zapret GUI" width="45%">
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="assets/Настройки2.png" alt="Настройки" width="45%">
 </p>
