@@ -281,21 +281,70 @@ def _prune_backups() -> None:
         shutil.rmtree(d, ignore_errors=True)
 
 
+def _force_unlock_release(log=None) -> None:
+    """Жёстко освобождает папку release перед заменой (winws, службы, пауза)."""
+    stop(full=True)
+    # ещё раз на случай, если процесс успел подняться
+    _run(["taskkill", "/IM", "winws.exe", "/F", "/T"])
+    _run(["taskkill", "/IM", "winws2.exe", "/F", "/T"])
+    deadline = time.monotonic() + 6.0
+    while time.monotonic() < deadline and is_running():
+        time.sleep(0.25)
+        _run(["taskkill", "/IM", "winws.exe", "/F", "/T"])
+    # короткая пауза: антивирус / Проводник отпускают дескрипторы
+    time.sleep(0.6)
+
+
+def _robust_move(src: Path, dst: Path, log=None, attempts: int = 8) -> None:
+    """shutil.move с повторами при WinError 32 (файл занят)."""
+    last = None
+    for i in range(attempts):
+        try:
+            if dst.exists():
+                shutil.rmtree(dst, ignore_errors=True)
+            shutil.move(str(src), str(dst))
+            return
+        except OSError as e:
+            last = e
+            win = getattr(e, "winerror", None) or getattr(e, "errno", None)
+            if log:
+                log(f"Папка занята, повтор {i + 1}/{attempts}: {e}")
+            _run(["taskkill", "/IM", "winws.exe", "/F", "/T"])
+            time.sleep(0.5 + i * 0.35)
+    raise OSError(
+        f"Не удалось заменить папку (файл занят другим процессом). "
+        f"Закрой Проводник с папкой Zapret GUI, заверши winws.exe в диспетчере задач "
+        f"и повтори. Было: {last}"
+    ) from last
+
+
 def _replace_release(staging: Path, version: str, log) -> None:
     """Старую версию -> backup/<версия>_<время>, новую -> release, списки *-user.txt переносим."""
+    _force_unlock_release(log)
     rel = release_dir()
     saved = {}
     if rel.exists() and not is_valid_zapret(rel):
-        shutil.rmtree(rel, ignore_errors=True)  # пустая заготовка, бэкапить нечего
+        for _ in range(5):
+            try:
+                shutil.rmtree(rel)
+                break
+            except OSError:
+                _run(["taskkill", "/IM", "winws.exe", "/F", "/T"])
+                time.sleep(0.5)
+        else:
+            shutil.rmtree(rel, ignore_errors=True)
     if rel.exists():
         for p in rel.glob(USER_GLOB):
-            saved[p.relative_to(rel)] = p.read_bytes()
+            try:
+                saved[p.relative_to(rel)] = p.read_bytes()
+            except OSError:
+                pass
         backup_dir().mkdir(parents=True, exist_ok=True)
         dest = backup_dir() / f"{CFG['version'] or 'unknown'}_{time.strftime('%Y%m%d-%H%M%S')}"
-        shutil.move(str(rel), str(dest))
+        _robust_move(rel, dest, log)
         log(f"Бэкап старой версии: {dest}")
         _prune_backups()
-    shutil.move(str(staging), str(rel))
+    _robust_move(staging, rel, log)
     for relpath, content in saved.items():
         t = rel / relpath
         t.parent.mkdir(parents=True, exist_ok=True)
@@ -305,7 +354,7 @@ def _replace_release(staging: Path, version: str, log) -> None:
 
 
 def install_release(url: str, tag: str, log) -> None:
-    stop()
+    stop(full=True)
     zip_path = downloads_dir() / f"zapret-{tag}.zip"
     log(f"Скачиваю {tag} в {downloads_dir()}")
     _download(url, zip_path, log)
@@ -356,7 +405,7 @@ def list_backups() -> list[str]:
 
 
 def restore_backup(name: str, log) -> None:
-    stop()
+    stop(full=True)
     with tempfile.TemporaryDirectory(dir=base_dir()) as tmp:
         staging = Path(tmp) / "x"
         shutil.move(str(backup_dir() / name), str(staging))

@@ -1342,6 +1342,7 @@ class MainWindow(QMainWindow):
         self.ticker.timeout.connect(self.tick)
         self.ticker.start(1000)
         self.check_updates()
+        QTimer.singleShot(1500, self.ensure_zapret_present)
         QTimer.singleShot(4000, self.check_app_updates)
         QTimer.singleShot(1200, self.maybe_show_whats_new)
         if core.is_installed() and core.lists_due():  # списки подтягиваем в фоне раз в 12 часов
@@ -1357,7 +1358,14 @@ class MainWindow(QMainWindow):
     # ---------- страницы ----------
     def build_home(self):
         w, v = page()
-        # мини-баннер: версия и предложение обновиться / что нового
+        # сверху только кнопка; по клику выезжает карточка с описанием
+        self.home_update_btn = QPushButton("Доступно обновление")
+        self.home_update_btn.setObjectName("accent")
+        self.home_update_btn.setVisible(False)
+        self.home_update_btn.setCursor(Qt.PointingHandCursor)
+        self.home_update_btn.clicked.connect(self.toggle_home_banner)
+        v.addWidget(self.home_update_btn, alignment=Qt.AlignHCenter)
+
         self.home_banner = QFrame()
         self.home_banner.setObjectName("card")
         self.home_banner.setVisible(False)
@@ -1372,7 +1380,7 @@ class MainWindow(QMainWindow):
         bl.addWidget(self.home_banner_title)
         bl.addWidget(self.home_banner_body)
         brow = QHBoxLayout()
-        self.home_banner_update = QPushButton("Обновить")
+        self.home_banner_update = QPushButton("Установить")
         self.home_banner_update.setObjectName("accent")
         self.home_banner_update.clicked.connect(self.on_home_banner_update)
         self.home_banner_later = QPushButton("Закрыть")
@@ -1382,10 +1390,15 @@ class MainWindow(QMainWindow):
         brow.addStretch(1)
         bl.addLayout(brow)
         v.addWidget(self.home_banner)
+
         self.home_ver = QLabel(f"Zapret GUI {core.VERSION}")
         self.home_ver.setObjectName("muted")
         self.home_ver.setAlignment(Qt.AlignHCenter)
         v.addWidget(self.home_ver)
+        self.home_zapret = QLabel("")
+        self.home_zapret.setObjectName("muted")
+        self.home_zapret.setAlignment(Qt.AlignHCenter)
+        v.addWidget(self.home_zapret)
         v.addStretch(2)
         self.power = PowerButton()
         self.power.clicked.connect(self.toggle)
@@ -2145,8 +2158,8 @@ class MainWindow(QMainWindow):
     def set_look(self, key: str, value: str):
         core.CFG[key] = value
         core.save()
-        # акцент / шрифт / углы — тоже с плавным переходом
-        self.apply_theme(core.CFG["theme"], animate=(key in ("theme", "accent", "corners")))
+        # fade окна только при смене темы; углы/акцент — мгновенно (без «мигания» приложения)
+        self.apply_theme(core.CFG["theme"], animate=(key == "theme"))
         self.sync_look_controls()
 
     def sync_look_controls(self):
@@ -2408,7 +2421,19 @@ class MainWindow(QMainWindow):
         self.tray.setToolTip(tip)
         if hasattr(self, "tray_status"):
             self.tray_status.setText(status_text)
-        self.update_home_stats()
+        if hasattr(self, "home_zapret"):
+            ver = (core.CFG.get("version") or "").strip()
+            if installed and ver:
+                self.home_zapret.setText(f"zapret {ver}")
+            elif installed:
+                self.home_zapret.setText("zapret установлен")
+            else:
+                self.home_zapret.setText("zapret не установлен")
+        if hasattr(self, "update_home_stats"):
+            try:
+                self.update_home_stats()
+            except Exception:
+                pass
 
     def update_home_stats(self):
         """Мини-сводка на главной: zapret, профили, сайты."""
@@ -2710,16 +2735,42 @@ class MainWindow(QMainWindow):
         core.bg(work)
 
     def show_home_banner(self, title: str, body: str, show_update: bool):
+        """Сверху кнопка; карточка с текстом открывается по клику."""
         if not hasattr(self, "home_banner"):
             return
+        self._banner_title = title
+        self._banner_body = body
+        self._banner_show_update = show_update
         self.home_banner_title.setText(title)
         self.home_banner_body.setText(body)
         self.home_banner_update.setVisible(show_update)
-        self.home_banner.setVisible(True)
+        self.home_banner.setVisible(False)
+        if hasattr(self, "home_update_btn"):
+            self.home_update_btn.setText(title if len(title) < 40 else "Доступно обновление")
+            self.home_update_btn.setVisible(True)
+
+    def toggle_home_banner(self):
+        if not hasattr(self, "home_banner"):
+            return
+        opening = not self.home_banner.isVisible()
+        self.home_banner.setVisible(opening)
+        if opening and anim_on():
+            fx = QGraphicsOpacityEffect(self.home_banner)
+            self.home_banner.setGraphicsEffect(fx)
+            anim = QPropertyAnimation(fx, b"opacity", self)
+            anim.setDuration(180 if core.CFG.get("animation_style") == "quick" else 280)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.finished.connect(lambda: self.home_banner.setGraphicsEffect(None))
+            anim.start(QPropertyAnimation.DeleteWhenStopped)
+            self._banner_anim = anim
 
     def hide_home_banner(self):
         if hasattr(self, "home_banner"):
             self.home_banner.setVisible(False)
+        if hasattr(self, "home_update_btn"):
+            self.home_update_btn.setVisible(False)
 
     def on_home_banner_update(self):
         if self.app_rels:
@@ -2728,7 +2779,6 @@ class MainWindow(QMainWindow):
             self.check_app_updates(manual=True)
 
     def on_home_banner_later(self):
-        # Закрытие баннера не отключает уведомления о версии навсегда.
         self.hide_home_banner()
 
     def maybe_show_whats_new(self):
@@ -3145,9 +3195,30 @@ class MainWindow(QMainWindow):
             b.setEnabled(not busy)
         self.refresh_status()
 
+    def ensure_zapret_present(self):
+        """Если нет рабочей release и нет бэкапов — просим установить zapret (как обычно)."""
+        if core.is_installed():
+            return
+        backups = []
+        try:
+            backups = core.list_backups()
+        except Exception:
+            pass
+        if backups:
+            # есть бэкап — пользователь может переключиться вручную в настройках
+            self.bus.log.emit(
+                f"Рабочая папка zapret пуста, но есть бэкапы ({len(backups)}). "
+                f"Можно переключить в Настройки → zapret или установить заново.")
+            self.sub.setText("Нет рабочей версии — выбери бэкап или установи zapret")
+            return
+        # ничего нет — ставим последний релиз
+        self.bus.log.emit("zapret не найден (ни release, ни backup) — скачиваю последний релиз…")
+        self.check_updates(force=True)
+
     def check_updates(self, force=False):
         self._force = force
-        self.btn_check.setEnabled(False)
+        if hasattr(self, "btn_check"):
+            self.btn_check.setEnabled(False)
 
         def work():
             try:
@@ -3159,9 +3230,12 @@ class MainWindow(QMainWindow):
     def on_latest(self, tag: str, url: str):
         self.latest = (tag, url)
         self.update_version_labels()
-        self.btn_check.setEnabled(not self.busy)
+        if hasattr(self, "btn_check"):
+            self.btn_check.setEnabled(not self.busy)
+        installed = core.is_installed()
         outdated = tag != core.CFG["version"] and core.CFG["version"] != "своя"
-        if outdated and (not core.is_installed() or core.CFG["auto_update"] or self._force):
+        # нет рабочей версии — всегда ставим; иначе auto_update / force
+        if (not installed or outdated) and (not installed or core.CFG["auto_update"] or self._force):
             self.install_latest()
         else:
             self.bus.log.emit("Обновлений нет" if not outdated else f"Доступна версия {tag}")
