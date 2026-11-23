@@ -17,6 +17,8 @@
 
 <div align="center">
   <img src="assets/g-v1.0.3.png" alt="Zapret GUI" width="40%">
+  <img src="assets/g-v1.0.3.png" alt="Zapret GUI" width="40%">
+  ---</br>
 </div>
 ## Возможности
 
