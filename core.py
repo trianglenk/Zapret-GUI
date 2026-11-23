@@ -51,11 +51,11 @@ DEFAULTS = {
     "close_to_tray": True,
     "theme": "violet",      # violet | green | light | light-green | auto
     "accent": "",           # свой цвет акцента (#rrggbb) или пусто
-    "font_size": "normal",  # старые small/normal/large или непрерывное значение 9–16 pt
+    "font_size": 9.0,       # фиксированный компактный размер
     "corners": "soft",      # soft | sharp
     "density": "normal",    # compact | normal | spacious
     "animations": True,
-    "animation_style": "smooth",  # smooth | quick | subtle
+    "animation_style": "smooth",  # smooth | quick | none
     "collapsed_sections": {},  # индивидуальные настройки сворачивания блоков
     "sites_auto": True,     # проверять сайты после включения обхода
     "lists_auto_update": True,
@@ -437,6 +437,88 @@ def seed_profiles() -> None:
     if created or not CFG.get("profiles_seeded"):
         CFG["profiles_seeded"] = True
         save()
+
+
+# Репозиторий с готовыми списками доменов для профилей
+PROFILES_REPO = "trianglenk/zapretgui.list"
+PROFILES_API = f"https://api.github.com/repos/{PROFILES_REPO}/contents/"
+PROFILES_RAW = f"https://raw.githubusercontent.com/{PROFILES_REPO}/main/"
+
+
+def _profile_name_from_file(filename: str) -> str:
+    """list-discord.txt / litst-youtube.txt → Discord / Youtube."""
+    stem = Path(filename).stem
+    # убираем префиксы list- / litst-
+    for prefix in ("list-", "litst-", "lists-"):
+        if stem.lower().startswith(prefix):
+            stem = stem[len(prefix):]
+            break
+    # красивые имена
+    pretty = {
+        "discord": "Discord",
+        "youtube": "YouTube",
+        "roblox": "Roblox",
+        "x": "X Twitter",
+        "xbox-microsoft-minecraft": "Xbox Microsoft Minecraft",
+        "f": "Full",
+    }
+    key = stem.lower().replace("_", "-")
+    return pretty.get(key, stem.replace("-", " ").replace("_", " ").strip().title() or "Профиль")
+
+
+def fetch_remote_profiles(log=None) -> list[dict]:
+    """Список .txt файлов из trianglenk/zapretgui.list.
+    Каждый: name (для профиля), filename, url (raw)."""
+    req = urllib.request.Request(PROFILES_API, headers=UA)
+    with gh_open(req, timeout=20) as resp:
+        data = json.loads(resp.read().decode("utf-8", errors="replace"))
+    out = []
+    for item in data if isinstance(data, list) else []:
+        if item.get("type") != "file":
+            continue
+        fname = item.get("name") or ""
+        if not fname.lower().endswith(".txt"):
+            continue
+        url = item.get("download_url") or (PROFILES_RAW + fname)
+        out.append({
+            "name": _profile_name_from_file(fname),
+            "filename": fname,
+            "url": url,
+            "size": int(item.get("size") or 0),
+        })
+    out.sort(key=lambda x: x["name"].lower())
+    if log:
+        log(f"Найдено удалённых профилей: {len(out)}")
+    return out
+
+
+def download_remote_profiles(log=None, overwrite: bool = False) -> int:
+    """Скачивает все .txt из zapretgui.list в папку profiles.
+    Возвращает число новых/обновлённых файлов."""
+    items = fetch_remote_profiles(log)
+    count = 0
+    for it in items:
+        name = safe_name(it["name"]) or "profile"
+        dest = profiles_dir() / f"{name}.txt"
+        if dest.exists() and not overwrite:
+            if log:
+                log(f"Пропуск (уже есть): {name}")
+            continue
+        if log:
+            log(f"Скачиваю профиль «{name}»…")
+        req = urllib.request.Request(it["url"], headers=UA)
+        with gh_open(req, timeout=60) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        # пустые файлы не пишем
+        if not text.strip():
+            if log:
+                log(f"Пустой список, пропуск: {name}")
+            continue
+        dest.write_text(text.strip() + "\n", encoding="utf-8")
+        count += 1
+    if log:
+        log(f"Профилей загружено/обновлено: {count}")
+    return count
 
 
 def list_profiles() -> list[str]:

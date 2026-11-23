@@ -41,8 +41,8 @@ THEMES = {
 }
 THEME_KEYS = ["violet", "green", "ocean", "rose", "amber", "oled", "light", "light-green", "auto"]
 LEGACY_THEMES = {"dark": "violet"}          # имена тем из старых версий
-FONT_KEYS = ["small", "normal", "large"]
-FONT_SIZES = {"small": 9, "normal": 10, "large": 11.5}
+FONT_KEYS = ["small", "normal", "large", "compact"]
+FONT_SIZES = {"small": 9, "compact": 9, "normal": 10.5, "large": 10.5}
 CORNER_KEYS = ["soft", "sharp"]
 CORNERS = {"soft": (14, 10), "sharp": (6, 4)}
 DENSITY_KEYS = ["compact", "normal", "spacious"]
@@ -143,8 +143,8 @@ def compute_palette(cfg: dict, theme: str | None = None, system_light: bool = Fa
     pal["ONACC"] = readable_on([pal["ACC1"], pal["ACC2"]])
     pal["ACC_FG"] = readable_accent(pal["ACC1"], pal["SURFACE"])
     pal.update(DENSITY[cfg["density"] if cfg.get("density") in DENSITY else "normal"])
-    fs = cfg.get("font_size", "normal")
-    pal["FS"] = float(fs) if isinstance(fs, (int, float)) and not isinstance(fs, bool) else FONT_SIZES.get(fs, 10)
+    # фиксированный компактный шрифт — не раздувает интерфейс
+    pal["FS"] = 9.0
     pal["R1"], pal["R2"] = CORNERS.get(cfg.get("corners"), (14, 10))
     return pal
 
@@ -166,13 +166,21 @@ def sanitize_look(cfg: dict) -> dict:
     cfg["theme"] = t if t in THEME_KEYS else "violet"
     acc = cfg.get("accent")
     cfg["accent"] = acc.lower() if is_hex(acc) else ""
-    fs = cfg.get("font_size", "normal")
-    if isinstance(fs, (int, float)) and not isinstance(fs, bool):
-        cfg["font_size"] = max(9.0, min(16.0, float(fs)))
-    else:
-        cfg["font_size"] = fs if fs in FONT_KEYS else "normal"
+    cfg["font_size"] = 9.0  # только компактный размер
     cfg["corners"] = cfg.get("corners") if cfg.get("corners") in CORNER_KEYS else "soft"
     cfg["density"] = cfg.get("density") if cfg.get("density") in DENSITY_KEYS else "normal"
-    cfg["animations"] = to_bool(cfg.get("animations", True))
-    cfg["animation_style"] = cfg.get("animation_style") if cfg.get("animation_style") in ("smooth", "quick", "subtle") else "smooth"
+    style = cfg.get("animation_style")
+    if style in ("smooth", "quick", "none"):
+        cfg["animation_style"] = style
+    elif style == "subtle":  # старое «ненавязчивая» -> полностью без анимаций
+        cfg["animation_style"] = "none"
+    else:
+        cfg["animation_style"] = "smooth"
+    # «Нет» полностью отключает анимации; иначе включаем и применяем выбранный стиль
+    if cfg["animation_style"] == "none":
+        cfg["animations"] = False
+    else:
+        cfg["animations"] = to_bool(cfg.get("animations", True))
+        if not cfg["animations"]:
+            cfg["animation_style"] = "none"
     return cfg

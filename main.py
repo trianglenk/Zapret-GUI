@@ -14,7 +14,7 @@ from qt import (  # PySide6 (Windows 10/11) или PySide2 (Windows 7)
     QColor, QColorDialog, QComboBox, QEasingCurve, QFileDialog, QFont, QFrame, QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, QIcon, QInputDialog, QLabel, QLineEdit, QLinearGradient, QListWidget, QListWidgetItem,
     QLocalServer, QLocalSocket, QMainWindow, QMenu, QMessageBox, QObject, QPainter, QPainterPath, QPen, QPixmap,
-    QPlainTextEdit, QPointF, QPropertyAnimation, QPushButton, QRectF, QScrollArea, QSize, QSlider, QStackedWidget,
+    QPlainTextEdit, QPoint, QPointF, QPropertyAnimation, QPushButton, QRectF, QScrollArea, QSize, QSlider, QStackedWidget,
     QSystemTrayIcon, Qt, QTimer, QVariantAnimation, QVBoxLayout, QWidget,
     Signal,
 )
@@ -41,9 +41,9 @@ QMainWindow, QWidget#page, QScrollArea, QWidget#scrollbody {{ background: {c['BG
 QFrame#card {{ background: {c['SURFACE']}; border: 1px solid {c['BORDER']}; border-radius: {c['R1']}px; }}
 QFrame#sectionBody {{ background: transparent; border: none; }}
 QLabel#cardTitle {{ color: {c['MUTED']}; font-weight: 600; }}
-QLabel#status {{ font-size: 20pt; font-weight: 700; }}
-QLabel#h1 {{ font-size: 17pt; font-weight: 700; }}
-QLabel#caption {{ color: {c['MUTED']}; font-size: 9pt; font-weight: 600; }}
+QLabel#status {{ font-size: {max(14, c['FS'] * 1.85):.1f}pt; font-weight: 700; }}
+QLabel#h1 {{ font-size: {max(13, c['FS'] * 1.55):.1f}pt; font-weight: 700; }}
+QLabel#caption {{ color: {c['MUTED']}; font-size: {max(8, c['FS'] * 0.9):.1f}pt; font-weight: 600; }}
 QLabel#muted {{ color: {c['MUTED']}; }}
 QLabel#mono {{ font-family: Consolas; color: {c['MONO']}; }}
 QPushButton {{ background: {c['BTN']}; border: 1px solid {c['BORDER']}; padding: {c['PAD']}px 14px; border-radius: {c['R2']}px; }}
@@ -67,9 +67,26 @@ QPushButton#ghost:hover {{ color: {c['BAD']}; }}
 QLineEdit, QComboBox, QPlainTextEdit, QListWidget, QTableWidget {{
     background: {c['SURFACE']}; border: 1px solid {c['BORDER']}; border-radius: {c['R2']}px; padding: {c['PADI']}px; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {c['ACC1']}; }}
-QComboBox::drop-down {{ border: none; width: 24px; }}
-QComboBox QAbstractItemView {{ background: {c['SURFACE']}; border: 1px solid {c['BORDER']};
-    selection-background-color: {c['ACC1']}; selection-color: #ffffff; outline: 0; }}
+QComboBox {{
+    min-height: 32px; max-height: 36px; padding-left: 10px; padding-right: 28px;
+    background: {c['SURFACE']}; border: 1px solid {c['BORDER']}; border-radius: 10px; }}
+QComboBox:hover {{ border-color: {c['ACC1']}; background: {c['HOVER']}; }}
+QComboBox:on {{ border-color: {c['ACC1']}; }}
+QComboBox::drop-down {{ border: none; width: 32px; subcontrol-origin: padding; subcontrol-position: center right; }}
+QComboBox::down-arrow {{
+    image: none; width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid {c['MUTED']}; margin-right: 12px; }}
+QComboBox QAbstractItemView {{
+    background: {c['SURFACE']}; border: 1px solid {c['BORDER']}; border-radius: 12px;
+    selection-background-color: {c['SEL']}; selection-color: {c['TEXT']};
+    outline: 0; padding: 6px; }}
+QComboBox QAbstractItemView::item {{
+    min-height: 28px; padding: 4px 10px; border-radius: 8px; margin: 1px 0; }}
+QComboBox QAbstractItemView::item:selected {{
+    background: {c['SEL']}; color: {c['TEXT']}; }}
+QComboBox QAbstractItemView::item:hover {{
+    background: {c['HOVER']}; }}
 QListWidget::item {{ padding: {c['PADI'] - 1}px; border-radius: 6px; }}
 QListWidget::item:selected {{ background: {c['SEL']}; color: {c['TEXT']}; }}
 QListWidget::indicator {{ width: 16px; height: 16px; border-radius: 5px; border: 1px solid {c['DIS']};
@@ -442,6 +459,8 @@ class SiteRow(QFrame):
     def __init__(self, name: str, url: str):
         super().__init__()
         self.url = url
+        self.name = name
+        self.last_ok = None
         self.setObjectName("card")
         lay = QHBoxLayout(self)
         lay.setContentsMargins(12, 10, 8, 10)
@@ -546,9 +565,11 @@ class SiteRow(QFrame):
         self.pulse.stop()
         self.fx.setOpacity(1.0)
         if res is None:
+            self.last_ok = None
             self._pill("Не проверен", P["MUTED"])
             self.ms_lbl.setText("")
             return
+        self.last_ok = bool(res.get("ok"))
         if res["ok"]:
             self._pill("Доступен", P["OK"])
             ms = res["ms"]
@@ -659,46 +680,185 @@ class ColorDot(QAbstractButton):
             p.drawEllipse(QRectF(self.rect()).adjusted(2, 2, -2, -2))
 
 
-class FontSizeSlider(QWidget):
-    """Плавная непрерывная настройка размера шрифта (9–16 pt, шаг 0,5)."""
-    changed = Signal(float)
+class DownComboBox(QComboBox):
+    """QComboBox: список открывается вниз, ширина по содержимому (без пустой полосы справа)."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMaxVisibleItems(8)
+        self.setMinimumHeight(30)
+        self.setMaximumHeight(36)
+        try:
+            self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        except Exception:
+            pass
+
+    def showPopup(self):
+        # подогнать ширину под самый длинный пункт, но не шире родителя/окна
+        fm = self.fontMetrics()
+        w = self.width()
+        for i in range(self.count()):
+            w = max(w, fm.horizontalAdvance(self.itemText(i)) + 48)
+        parent_w = self.window().width() if self.window() else w
+        w = min(w, max(180, parent_w - 32))
+        self.view().setMinimumWidth(min(w, self.width()))
+        self.view().setMaximumWidth(w)
+        super().showPopup()
+        # принудительно вниз, если места хватает
+        try:
+            popup = self.view().window()
+            if popup is None or popup is self:
+                return
+            below = self.mapToGlobal(self.rect().bottomLeft())
+            screen = QApplication.primaryScreen()
+            geo = screen.availableGeometry() if screen else None
+            ph = popup.sizeHint().height()
+            if geo is not None and below.y() + ph > geo.bottom():
+                # места снизу мало — оставляем решение Qt (вверх)
+                return
+            popup.move(below.x(), below.y() + 2)
+        except Exception:
+            pass
+
+
+class AnimationStylePicker(QWidget):
+    """Выбор стиля анимации с живой демонстрацией: блок ездит плавно / быстро / мгновенно."""
+    changed = Signal(str)  # "smooth" | "quick" | "none"
+
+    STYLES = [
+        ("smooth", "Плавная"),
+        ("quick", "Быстрая"),
+        ("none", "Нет"),
+    ]
 
     def __init__(self):
         super().__init__()
-        self.setFixedHeight(58)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(18, 32)  # половины пунктов: 9.0–16.0 pt
-        self.slider.setPageStep(2)
-        self.slider.setSingleStep(1)
-        self.slider.setTracking(True)
-        self.slider.setTickPosition(QSlider.NoTicks)
-        self.slider.valueChanged.connect(self._on_value)
-        lay.addWidget(self.slider)
-        labels = QHBoxLayout()
-        labels.setContentsMargins(0, 0, 0, 0)
-        for text in ("Мелкий", "Обычный", "Крупный"):
-            lab = QLabel(text)
-            lab.setObjectName("muted")
-            lab.setAlignment(Qt.AlignCenter)
-            labels.addWidget(lab, 1)
-        lay.addLayout(labels)
+        self._style = "smooth"
+        self._anim = None
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(10)
 
-    def set_key(self, key):
-        legacy = {"small": 9.0, "normal": 10.0, "large": 11.5}
-        value = legacy.get(key, key)
-        try:
-            value = max(9.0, min(16.0, float(value)))
-        except (TypeError, ValueError):
-            value = 10.0
-        self.slider.blockSignals(True)
-        self.slider.setValue(round(value * 2))
-        self.slider.blockSignals(False)
+        # кнопки выбора
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.buttons = []
+        grp = QButtonGroup(self)
+        for key, title in self.STYLES:
+            btn = QPushButton(title)
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setMinimumHeight(36)
+            btn.setProperty("animKey", key)
+            btn.clicked.connect(lambda _=False, k=key: self._pick(k))
+            grp.addButton(btn)
+            self.buttons.append(btn)
+            row.addWidget(btn, 1)
+        outer.addLayout(row)
 
-    def _on_value(self, value: int):
-        self.changed.emit(value / 2.0)
+        # демо-дорожка с двигающимся блоком
+        self.track = QFrame()
+        self.track.setObjectName("animTrack")
+        self.track.setFixedHeight(44)
+        self.block = QFrame(self.track)
+        self.block.setFixedSize(36, 28)
+        self.block.move(6, 8)
+        outer.addWidget(self.track)
+        self.refresh_colors()
+
+        hint = QLabel("По клику блок едет вправо → влево → вправо (3 раза)")
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        outer.addWidget(hint)
+
+        self._demo_gen = 0  # поколение демо — отменяет старые таймеры/анимации
+        self._set_checked("smooth")
+
+    def refresh_colors(self):
+        """Обновить цвета дорожки и кубика под текущую тему (в т.ч. светлую)."""
+        self.track.setStyleSheet(
+            f"QFrame#animTrack {{ background: {P.get('BG', '#0c0d12')}; "
+            f"border: 1px solid {P.get('BORDER', '#242530')}; border-radius: 10px; }}")
+        self.block.setStyleSheet(
+            f"background: {P.get('ACC1', '#7c5cff')}; border-radius: 8px;")
+
+    def _set_checked(self, key: str):
+        for btn in self.buttons:
+            btn.setChecked(btn.property("animKey") == key)
+
+    def set_style(self, key: str):
+        if key not in ("smooth", "quick", "none"):
+            key = "smooth"
+        self._style = key
+        self._set_checked(key)
+
+    def _pick(self, key: str):
+        self._style = key
+        self._set_checked(key)
+        self.changed.emit(key)
+        self._run_demo(key)
+
+    def _run_demo(self, style: str):
+        """По клику: блок едет вправо → влево → вправо (3 хода).
+        Плавная/быстрая — с анимацией; «Нет» — мгновенные прыжки."""
+        self._demo_gen += 1
+        gen = self._demo_gen
+        if self._anim is not None:
+            try:
+                self._anim.stop()
+            except Exception:
+                pass
+            self._anim = None
+
+        # дождаться раскладки, если ширина ещё 0
+        self.track.updateGeometry()
+        QApplication.processEvents()
+        start_x = 6
+        end_x = max(start_x + 40, self.track.width() - self.block.width() - 6)
+        self.block.move(start_x, 8)
+        self.refresh_colors()
+        path = [(start_x, end_x), (end_x, start_x), (start_x, end_x)]
+
+        if style == "none":
+            self._demo_instant(path, 0, gen)
+            return
+
+        duration = 400 if style == "smooth" else 130
+        easing = QEasingCurve.InOutCubic if style == "smooth" else QEasingCurve.OutQuad
+        self._demo_animated(path, 0, duration, easing, gen)
+
+    def _demo_instant(self, path, idx: int, gen: int):
+        if gen != self._demo_gen or idx >= len(path):
+            return
+        _, to_x = path[idx]
+        self.block.move(to_x, 8)
+        QTimer.singleShot(50, lambda: self._demo_instant(path, idx + 1, gen))
+
+    def _demo_animated(self, path, idx: int, duration: int, easing, gen: int):
+        if gen != self._demo_gen or idx >= len(path):
+            self._anim = None
+            return
+        from_x, to_x = path[idx]
+        anim = QPropertyAnimation(self.block, b"pos", self)
+        anim.setDuration(duration)
+        anim.setStartValue(QPoint(from_x, 8))
+        anim.setEndValue(QPoint(to_x, 8))
+        anim.setEasingCurve(easing)
+        self._anim = anim
+
+        def next_step(_gen=gen):
+            if _gen != self._demo_gen:
+                return
+            self._demo_animated(path, idx + 1, duration, easing, _gen)
+
+        anim.finished.connect(next_step)
+        anim.start()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if self.block.x() > 20:
+            end_x = max(6, self.track.width() - self.block.width() - 6)
+            self.block.move(end_x, 8)
 
 
 class ScrollToTopArea(QScrollArea):
@@ -1041,7 +1201,7 @@ class CollapsibleSection(QFrame):
         core.save()
         if self._anim is not None:
             self._anim.stop()
-        if not anim_on() or core.CFG.get("animation_style") == "subtle":
+        if not anim_on():
             self.body.setVisible(expanded)
             self.body.setMaximumHeight(16777215)
             return
@@ -1053,12 +1213,14 @@ class CollapsibleSection(QFrame):
         else:
             start = max(1, self.body.height())
             end = 0
-        duration = 140 if core.CFG.get("animation_style") == "quick" else 220
+        style = core.CFG.get("animation_style", "smooth")
+        duration = 140 if style == "quick" else 220
         self._anim = QPropertyAnimation(self.body, b"maximumHeight", self)
         self._anim.setDuration(duration)
         self._anim.setStartValue(start)
         self._anim.setEndValue(end)
-        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim.setEasingCurve(
+            QEasingCurve.OutCubic if style == "smooth" else QEasingCurve.OutQuad)
         if not expanded:
             self._anim.finished.connect(lambda: self.body.setVisible(False))
         else:
@@ -1102,7 +1264,11 @@ class MainWindow(QMainWindow):
         self.bus.changed.connect(self.on_changed)
         self.bus.failed.connect(self.on_failed)
         self.bus.site.connect(self.on_site_result)
-        self.bus.sites_done.connect(lambda: self.sites_btn.setEnabled(True))
+        def _sites_done():
+            self.sites_btn.setEnabled(True)
+            self.update_sites_summary()
+            self.update_home_stats()
+        self.bus.sites_done.connect(_sites_done)
         self.bus.auto_done.connect(self.on_auto_done)
         self.bus.app_checked.connect(self.on_app_checked)
         self.bus.app_ready.connect(self.on_app_ready)
@@ -1236,8 +1402,10 @@ class MainWindow(QMainWindow):
         self.busybar = BusyBar()
         v.addWidget(self.busybar, alignment=Qt.AlignHCenter)
         v.addSpacing(10)
-        self.combo = QComboBox()
-        self.combo.setMinimumWidth(280)
+        self.combo = DownComboBox()
+        self.combo.setMinimumWidth(200)
+        self.combo.setMaximumWidth(300)
+        self.combo.setFixedHeight(34)
         self.combo.currentTextChanged.connect(self.on_strategy_changed)
         v.addWidget(self.combo, alignment=Qt.AlignHCenter)
         self.auto_btn = QPushButton("Подобрать стратегию автоматически")
@@ -1275,7 +1443,7 @@ class MainWindow(QMainWindow):
         tv = QVBoxLayout()
         tv.setSpacing(2)
         self.sites_title = QLabel("Проверка доступности")
-        self.sites_title.setStyleSheet("font-size: 14pt; font-weight: 700;")
+        self.sites_title.setObjectName("h1")
         self.sites_sub = QLabel("")
         self.sites_sub.setObjectName("muted")
         self.sites_sub.setWordWrap(True)
@@ -1289,6 +1457,17 @@ class MainWindow(QMainWindow):
         cl.addLayout(top)
         self.ratio_bar = RatioBar()
         cl.addWidget(self.ratio_bar)
+        srow = QHBoxLayout()
+        self.sites_clear_btn = QPushButton("Сбросить статусы")
+        self.sites_clear_btn.setObjectName("chip")
+        self.sites_clear_btn.clicked.connect(self.clear_site_statuses)
+        self.sites_copy_fail = QPushButton("Копировать недоступные")
+        self.sites_copy_fail.setObjectName("chip")
+        self.sites_copy_fail.clicked.connect(self.copy_failed_sites)
+        srow.addWidget(self.sites_clear_btn)
+        srow.addWidget(self.sites_copy_fail)
+        srow.addStretch(1)
+        cl.addLayout(srow)
         v.addWidget(c)
 
         row = QHBoxLayout()
@@ -1329,7 +1508,7 @@ class MainWindow(QMainWindow):
 
     def build_lists(self):
         w, v = page("Списки")
-        self.list_combo = QComboBox()
+        self.list_combo = DownComboBox()
         self.list_combo.addItems(core.EDITABLE_LISTS)
         self.list_combo.currentTextChanged.connect(self.load_list)
         v.addWidget(self.list_combo)
@@ -1371,6 +1550,17 @@ class MainWindow(QMainWindow):
         self.profile_summary = QLabel("Профили")
         self.profile_summary.setObjectName("caption")
         v.addWidget(self.profile_summary)
+        prow = QHBoxLayout()
+        b_all_on = QPushButton("Включить все")
+        b_all_on.setObjectName("chip")
+        b_all_on.clicked.connect(lambda: self.set_all_profiles(True))
+        b_all_off = QPushButton("Выключить все")
+        b_all_off.setObjectName("chip")
+        b_all_off.clicked.connect(lambda: self.set_all_profiles(False))
+        prow.addWidget(b_all_on)
+        prow.addWidget(b_all_off)
+        prow.addStretch(1)
+        v.addLayout(prow)
         self.prof_list = QListWidget()
         self.prof_list.setMinimumHeight(125)
         self.prof_list.setMaximumHeight(210)
@@ -1405,6 +1595,11 @@ class MainWindow(QMainWindow):
         for b in (b_new, b_save, b_del, b_imp, b_exp):
             row.addWidget(b)
         v.addLayout(row)
+        b_gh = QPushButton("Загрузить профили с GitHub")
+        b_gh.setToolTip("Скачать списки доменов из github.com/trianglenk/zapretgui.list")
+        b_gh.clicked.connect(self.download_profiles_github)
+        v.addWidget(b_gh)
+        self.busy_buttons.append(b_gh)
         self.update_profile_count()
         return w
 
@@ -1432,7 +1627,7 @@ class MainWindow(QMainWindow):
 
         c, cl = self.section_card("about", "О приложении")
         t = QLabel("Zapret GUI")
-        t.setStyleSheet("font-size: 18pt; font-weight: 700; letter-spacing: -0.3px;")
+        t.setObjectName("h1")
         cl.addWidget(t)
         ver = QLabel(f"Версия {core.VERSION}")
         ver.setObjectName("muted")
@@ -1497,30 +1692,23 @@ class MainWindow(QMainWindow):
         agrid.addWidget(b_acc, (len(self.accent_dots)) // 8, (len(self.accent_dots)) % 8)
         cl.addLayout(agrid)
 
-        caption("ШРИФТ")
-        self.font_slider = FontSizeSlider()
-        self.font_slider.set_key(core.CFG.get("font_size", "normal"))
-        self.font_slider.changed.connect(lambda value: self.set_look("font_size", value))
-        cl.addWidget(self.font_slider)
-
         caption("УГЛЫ")
         self.corner_picker = CornerPicker()
         self.corner_picker.set_key(core.CFG.get("corners", "soft"))
         self.corner_picker.changed.connect(lambda k: self.set_look("corners", k))
         cl.addWidget(self.corner_picker)
 
-        self.anim_cb = QCheckBox("Анимации интерфейса")
-        self.anim_cb.setChecked(core.CFG["animations"])
-        self.anim_cb.toggled.connect(self.on_anim_toggled)
-        cl.addWidget(self.anim_cb)
-
-        caption("СТИЛЬ АНИМАЦИИ")
-        self.animation_style_combo = QComboBox()
-        self.animation_style_combo.addItems(["Плавная", "Быстрая", "Ненавязчивая"])
-        self.animation_style_combo.setCurrentIndex(
-            {"smooth": 0, "quick": 1, "subtle": 2}.get(core.CFG.get("animation_style", "smooth"), 0))
-        self.animation_style_combo.currentIndexChanged.connect(self.on_animation_style_changed)
-        cl.addWidget(self.animation_style_combo)
+        caption("АНИМАЦИИ")
+        self.anim_picker = AnimationStylePicker()
+        style = core.CFG.get("animation_style", "smooth")
+        if not core.CFG.get("animations", True) or style == "none":
+            style = "none"
+        self.anim_picker.set_style(style)
+        self.anim_picker.changed.connect(self.on_animation_style_picked)
+        cl.addWidget(self.anim_picker)
+        # совместимость со старым кодом
+        self.animation_style_combo = None
+        self.anim_cb = None
 
         b_def = QPushButton("Сбросить оформление")
         b_def.clicked.connect(self.reset_look)
@@ -1552,11 +1740,11 @@ class MainWindow(QMainWindow):
         lab = QLabel("Другие версии zapret")
         lab.setObjectName("cardTitle")
         cl.addWidget(lab)
-        hint = QLabel("Можно поставить не только последний релиз, а любую из списка (например, откат на 1.10.x).")
+        hint = QLabel("Можно поставить не только последний релиз, а любую из списка (например, откат на 1.10.x). Локальные бэкапы уже установленных версий — ниже.")
         hint.setObjectName("muted")
         hint.setWordWrap(True)
         cl.addWidget(hint)
-        self.zapret_combo = QComboBox()
+        self.zapret_combo = DownComboBox()
         self.zapret_combo.setEnabled(False)
         cl.addWidget(self.zapret_combo)
         r = QHBoxLayout()
@@ -1567,7 +1755,28 @@ class MainWindow(QMainWindow):
         r.addWidget(self.btn_zapret_list)
         r.addWidget(self.btn_zapret_install, 1)
         cl.addLayout(r)
-        self.busy_buttons += [self.btn_check, self.btn_install, self.btn_zapret_list, self.btn_zapret_install]
+
+        lab2 = QLabel("Уже установленные (локальные бэкапы)")
+        lab2.setObjectName("cardTitle")
+        cl.addWidget(lab2)
+        hint2 = QLabel("Переключение на старую версию без скачивания. Текущая уйдёт в бэкап.")
+        hint2.setObjectName("muted")
+        hint2.setWordWrap(True)
+        cl.addWidget(hint2)
+        self.local_zapret_combo = DownComboBox()
+        cl.addWidget(self.local_zapret_combo)
+        r2 = QHBoxLayout()
+        self.btn_local_refresh = QPushButton("Обновить список")
+        self.btn_local_refresh.clicked.connect(self.refresh_local_zapret)
+        self.btn_local_switch = QPushButton("Переключить на выбранную")
+        self.btn_local_switch.setObjectName("accent")
+        self.btn_local_switch.clicked.connect(self.switch_local_zapret)
+        r2.addWidget(self.btn_local_refresh)
+        r2.addWidget(self.btn_local_switch, 1)
+        cl.addLayout(r2)
+        self.busy_buttons += [self.btn_check, self.btn_install, self.btn_zapret_list, self.btn_zapret_install,
+                              self.btn_local_refresh, self.btn_local_switch]
+        self.refresh_local_zapret()
         v.addWidget(c)
 
         management_card, management_layout = self.section_card("management", "Приложение, папки, версии и журнал")
@@ -1600,12 +1809,12 @@ class MainWindow(QMainWindow):
         r.addWidget(self.app_check_btn)
         r.addWidget(self.app_update_btn, 1)
         cl.addLayout(r)
-        self.channel_combo = QComboBox()
+        self.channel_combo = DownComboBox()
         self.channel_combo.addItems(["Стабильные версии", "Пререлизы (бета)"])
         self.channel_combo.setCurrentIndex(1 if core.CFG["app_channel"] == "pre" else 0)
         self.channel_combo.currentIndexChanged.connect(self.on_channel_changed)
         cl.addWidget(self.channel_combo)
-        self.app_combo = QComboBox()
+        self.app_combo = DownComboBox()
         cl.addWidget(self.app_combo)
         b_sel = QPushButton("Установить выбранную версию")
         b_sel.clicked.connect(lambda: self.install_app(self.app_combo.currentData()))
@@ -1732,24 +1941,58 @@ class MainWindow(QMainWindow):
     def build_tray(self):
         self.tray = QSystemTrayIcon(status_icon(False), self)
         self.tray.setToolTip("Zapret GUI")
-        menu = QMenu()
+        self.tray_menu = QMenu()
         # Индикатор статуса (некликабельный)
         self.tray_status = QAction("● Выключено", self)
         self.tray_status.setEnabled(False)
-        menu.addAction(self.tray_status)
-        menu.addSeparator()
-        menu.addAction(QAction("Открыть", self, triggered=self.show_window))
+        self.tray_menu.addAction(self.tray_status)
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction(QAction("Открыть", self, triggered=self.show_window))
         self.tray_toggle = QAction("Включить", self, triggered=self.toggle)
-        menu.addAction(self.tray_toggle)
-        menu.addAction(QAction("Перезапустить", self, triggered=self.restart))
-        menu.addSeparator()
-        menu.addAction(QAction("Подобрать стратегию", self, triggered=self.auto_pick))
-        menu.addAction(QAction("Проверить систему", self, triggered=self.run_diagnostics_from_tray))
-        menu.addSeparator()
-        menu.addAction(QAction("Выход", self, triggered=self.quit_app))
-        self.tray.setContextMenu(menu)
+        self.tray_menu.addAction(self.tray_toggle)
+        self.tray_menu.addAction(QAction("Перезапустить", self, triggered=self.restart))
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction(QAction("Подобрать стратегию", self, triggered=self.auto_pick))
+        self.tray_menu.addAction(QAction("Проверить систему", self, triggered=self.run_diagnostics_from_tray))
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction(QAction("Выход", self, triggered=self.quit_app))
+        self.tray.setContextMenu(self.tray_menu)
+        self.style_tray_menu()
         self.tray.activated.connect(self.on_tray_click)
         self.tray.show()
+
+    def style_tray_menu(self):
+        """Меню трея в цветах текущей темы (читаемый текст на светлой и тёмной)."""
+        if not getattr(self, "tray_menu", None):
+            return
+        c = P
+        self.tray_menu.setStyleSheet(f"""
+            QMenu {{
+                background: {c['SURFACE']};
+                color: {c['TEXT']};
+                border: 1px solid {c['BORDER']};
+                border-radius: 10px;
+                padding: 6px;
+            }}
+            QMenu::item {{
+                background: transparent;
+                color: {c['TEXT']};
+                padding: 8px 28px 8px 16px;
+                border-radius: 6px;
+            }}
+            QMenu::item:selected {{
+                background: {c['SEL']};
+                color: {c['TEXT']};
+            }}
+            QMenu::item:disabled {{
+                color: {c['MUTED']};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {c['BORDER']};
+                margin: 4px 10px;
+            }}
+        """)
 
     # ---------- адаптивная раскладка и тема ----------
     def resizeEvent(self, e):
@@ -1809,7 +2052,6 @@ class MainWindow(QMainWindow):
             self.nav.setMinimumSize(90, 0)
             self.nav.setMaximumSize(90, 16777215)
         self.style_nav()
-
     def style_nav(self):
         dark = QColor(P["BG"]).lightness() < 128
         self.nav_shadow.setColor(QColor(0, 0, 0, 130 if dark else 50))
@@ -1817,10 +2059,18 @@ class MainWindow(QMainWindow):
             "QWidget#nav { background: transparent; } "
             f"QFrame#navpanel {{ background: {P['SURFACE']}; border: 1px solid {P['BORDER']}; border-radius: 24px; }}")
 
-    def apply_theme(self, name: str):
+    def apply_theme(self, name: str, animate: bool = True):
+        """Применить тему. При animate=True — плавный fade out → смена → fade in."""
+        if animate and anim_on() and self.isVisible():
+            self._theme_transition(name)
+        else:
+            self._apply_theme_now(name)
+
+    def _apply_theme_now(self, name: str):
         set_palette(name)
         QApplication.instance().setStyleSheet(build_style())
         self.style_nav()
+        self.style_tray_menu()
         self.power.update()
         self.restart_btn.setIcon(make_icon("restart", P["TEXT"]))
         for b in self.nav_buttons + self.swatches:
@@ -1828,12 +2078,50 @@ class MainWindow(QMainWindow):
         if getattr(self, "corner_picker", None):
             for b in self.corner_picker.buttons:
                 b.update()
+        if getattr(self, "anim_picker", None):
+            self.anim_picker.refresh_colors()
         if getattr(self, "about_link", None):
             self.about_link.setStyleSheet(f"padding-top: 2px; color: {P['ACC1']};")
         self.rebuild_sites()
         self.apply_density()
         self.preview.update()
         self.refresh_status()
+
+    def _theme_transition(self, name: str):
+        """Плавная смена темы: затемнение → новая палитра → проявление."""
+        # отменить предыдущий переход, если ещё идёт
+        if getattr(self, "_theme_anim", None) is not None:
+            try:
+                self._theme_anim.stop()
+            except Exception:
+                pass
+            self._theme_anim = None
+            self.setWindowOpacity(1.0)
+
+        style = core.CFG.get("animation_style", "smooth")
+        half = 160 if style == "smooth" else 70  # длительность половины перехода
+
+        # фаза 1: fade out
+        fade_out = QPropertyAnimation(self, b"windowOpacity", self)
+        fade_out.setDuration(half)
+        fade_out.setStartValue(self.windowOpacity())
+        fade_out.setEndValue(0.0)
+        fade_out.setEasingCurve(QEasingCurve.InQuad)
+
+        def on_mid():
+            self._apply_theme_now(name)
+            # фаза 2: fade in
+            fade_in = QPropertyAnimation(self, b"windowOpacity", self)
+            fade_in.setDuration(half)
+            fade_in.setStartValue(0.0)
+            fade_in.setEndValue(1.0)
+            fade_in.setEasingCurve(QEasingCurve.OutCubic if style == "smooth" else QEasingCurve.OutQuad)
+            self._theme_anim = fade_in
+            fade_in.start()
+
+        fade_out.finished.connect(on_mid)
+        self._theme_anim = fade_out
+        fade_out.start()
 
     def apply_density(self):
         """Меняет отступы уже созданных карточек и страниц под выбранную плотность."""
@@ -1851,13 +2139,14 @@ class MainWindow(QMainWindow):
     def on_theme_pick(self, key: str):
         core.CFG["theme"] = key
         core.save()
-        self.apply_theme(key)
+        self.apply_theme(key, animate=True)
         self.sync_look_controls()
 
     def set_look(self, key: str, value: str):
         core.CFG[key] = value
         core.save()
-        self.apply_theme(core.CFG["theme"])
+        # акцент / шрифт / углы — тоже с плавным переходом
+        self.apply_theme(core.CFG["theme"], animate=(key in ("theme", "accent", "corners")))
         self.sync_look_controls()
 
     def sync_look_controls(self):
@@ -1870,15 +2159,13 @@ class MainWindow(QMainWindow):
         for sw in self.swatches:
             sw.setChecked(sw.key == cur)
         self.theme_name.setText("Как в системе" if cur == "auto" else THEMES.get(cur, THEMES["violet"])["NAME"])
-        if hasattr(self, "font_slider"):
-            self.font_slider.set_key(core.CFG.get("font_size", "normal"))
         if hasattr(self, "corner_picker"):
             self.corner_picker.set_key(core.CFG.get("corners", "soft"))
-        if hasattr(self, "animation_style_combo"):
-            self.animation_style_combo.blockSignals(True)
-            self.animation_style_combo.setCurrentIndex(
-                {"smooth": 0, "quick": 1, "subtle": 2}.get(core.CFG.get("animation_style", "smooth"), 0))
-            self.animation_style_combo.blockSignals(False)
+        if getattr(self, "anim_picker", None):
+            style = core.CFG.get("animation_style", "smooth")
+            if not core.CFG.get("animations", True) or style == "none":
+                style = "none"
+            self.anim_picker.set_style(style)
         self.preview.set_patch(None)
 
     def set_section_default(self, key: str, collapsed: bool):
@@ -1890,30 +2177,47 @@ class MainWindow(QMainWindow):
         if section is not None:
             section.header.setChecked(not collapsed)
 
-    def on_animation_style_changed(self, index: int):
-        core.CFG["animation_style"] = ["smooth", "quick", "subtle"][max(0, min(2, index))]
+    def on_animation_style_picked(self, style: str):
+        """Выбор из AnimationStylePicker: smooth / quick / none."""
+        if style not in ("smooth", "quick", "none"):
+            style = "smooth"
+        core.CFG["animation_style"] = style
+        core.CFG["animations"] = style != "none"
         core.save()
-        # короткая демонстрация выбранного стиля
-        if not anim_on():
-            return
-        style = core.CFG["animation_style"]
-        duration = {"quick": 120, "subtle": 90, "smooth": 240}.get(style, 220)
-        self._style_demo = QPropertyAnimation(self.preview, b"windowOpacity", self)
-        # preview не имеет windowOpacity, поэтому анимируем через временный эффект
-        fx = QGraphicsOpacityEffect(self.preview)
-        self.preview.setGraphicsEffect(fx)
-        self._style_demo = QPropertyAnimation(fx, b"opacity", self)
-        self._style_demo.setDuration(duration)
-        self._style_demo.setStartValue(0.35)
-        self._style_demo.setEndValue(1.0)
-        self._style_demo.setEasingCurve(
-            QEasingCurve.OutCubic if style == "smooth" else
-            QEasingCurve.OutQuad if style == "quick" else QEasingCurve.Linear)
-        self._style_demo.finished.connect(lambda: self.preview.setGraphicsEffect(None))
-        self._style_demo.start()
+        if not core.CFG["animations"]:
+            self.power.pulse.stop()
+            self.busybar.anim.stop()
+            self.power._level = 1.0 if self.running else 0.0
+        elif self.running and self.power.isVisible():
+            self.power.pulse.start()
+        for w in (self.power, self.busybar, *self.nav_buttons):
+            w.update()
+        # демо уже запускает сам picker; дополнительно мигаем превью темы
+        if style != "none" and hasattr(self, "preview"):
+            duration = 420 if style == "smooth" else 140
+            fx = QGraphicsOpacityEffect(self.preview)
+            self.preview.setGraphicsEffect(fx)
+            self._style_demo = QPropertyAnimation(fx, b"opacity", self)
+            self._style_demo.setDuration(duration)
+            self._style_demo.setStartValue(0.35)
+            self._style_demo.setEndValue(1.0)
+            self._style_demo.setEasingCurve(
+                QEasingCurve.OutCubic if style == "smooth" else QEasingCurve.OutQuad)
+            self._style_demo.finished.connect(lambda: self.preview.setGraphicsEffect(None))
+            self._style_demo.start()
+
+    def on_animation_style_changed(self, index: int):
+        """Совместимость со старыми тестами (индекс 0/1/2)."""
+        styles = ["smooth", "quick", "none"]
+        self.on_animation_style_picked(styles[max(0, min(2, index))])
 
     def on_anim_toggled(self, on: bool):
+        """Совместимость: если где-то ещё вызывается, синхронизируем со стилем."""
         core.CFG["animations"] = on
+        if not on:
+            core.CFG["animation_style"] = "none"
+        elif core.CFG.get("animation_style") == "none":
+            core.CFG["animation_style"] = "smooth"
         core.save()
         if not on:
             self.power.pulse.stop()
@@ -1923,18 +2227,16 @@ class MainWindow(QMainWindow):
             self.power.pulse.start()
         for w in (self.power, self.busybar, *self.nav_buttons):
             w.update()
+        self.sync_look_controls()
 
     def reset_look(self):
-        core.CFG.update(theme="violet", accent="", font_size="normal", corners="soft", density="normal",
+        core.CFG.update(theme="violet", accent="", font_size=9.0, corners="soft", density="normal",
                         animations=True, animation_style="smooth")
         core.save()
-        if hasattr(self, "font_slider"):
-            self.font_slider.set_key("normal")
         if hasattr(self, "corner_picker"):
             self.corner_picker.set_key("soft")
-        self.anim_cb.setChecked(True)
-        if hasattr(self, "animation_style_combo"):
-            self.animation_style_combo.setCurrentIndex(0)
+        if getattr(self, "anim_picker", None):
+            self.anim_picker.set_style("smooth")
         self.apply_theme("violet")
         self.sync_look_controls()
 
@@ -1964,7 +2266,7 @@ class MainWindow(QMainWindow):
         if not anim_on():
             return
         style = core.CFG.get("animation_style", "smooth")
-        duration = 120 if style == "quick" else (90 if style == "subtle" else 220)
+        duration = 120 if style == "quick" else 220
         w = self.stack.currentWidget()
         eff = QGraphicsOpacityEffect(w)
         w.setGraphicsEffect(eff)
@@ -2061,6 +2363,7 @@ class MainWindow(QMainWindow):
         self.backup_list.addItems(core.list_backups())
         self.app_backup_list.clear()
         self.app_backup_list.addItems(core.list_app_backups())
+        self.refresh_local_zapret()
         for r in self.path_rows:
             r.value_label.setText(str(r.getter()))
         self.load_list(self.list_combo.currentText())
@@ -2105,8 +2408,64 @@ class MainWindow(QMainWindow):
         self.tray.setToolTip(tip)
         if hasattr(self, "tray_status"):
             self.tray_status.setText(status_text)
+        self.update_home_stats()
+
+    def update_home_stats(self):
+        """Мини-сводка на главной: zapret, профили, сайты."""
+        if not hasattr(self, "home_stat_zapret"):
+            return
+        ver = core.CFG.get("version") or "не установлен"
+        self.home_stat_zapret.setText(f"zapret: {ver}")
+        names = core.list_profiles()
+        enabled = sum(1 for n in names if core.is_enabled(n))
+        self.home_stat_profiles.setText(f"профили: {enabled} из {len(names)} вкл.")
+        total = len(getattr(self, "site_rows", {}) or {})
+        ok = 0
+        for row in (getattr(self, "site_rows", {}) or {}).values():
+            st = getattr(row, "last_ok", None)
+            if st is True:
+                ok += 1
+        if total:
+            self.home_stat_sites.setText(f"сайты: {ok}/{total} доступно")
+        else:
+            self.home_stat_sites.setText("сайты: нет в списке")
+
+    def clear_site_statuses(self):
+        self.site_results = {}
+        for row in (getattr(self, "site_rows", {}) or {}).values():
+            row.set_result(None, animate=False)
+        if hasattr(self, "ratio_bar"):
+            self.ratio_bar.set_ratio(0)
+        if hasattr(self, "sites_sub"):
+            self.sites_sub.setText("Статусы сброшены")
+        self.update_sites_summary()
+        self.update_home_stats()
+
+    def copy_failed_sites(self):
+        failed = []
+        for url, row in (getattr(self, "site_rows", {}) or {}).items():
+            if getattr(row, "last_ok", None) is False:
+                name = getattr(row, "name", None) or url
+                failed.append(f"{name}  {url}")
+        if not failed:
+            self.bus.log.emit("Недоступных сайтов нет (сначала нажми «Проверить все»)")
+            return
+        QApplication.clipboard().setText("\n".join(failed))
+        self.bus.log.emit(f"Скопировано недоступных: {len(failed)}")
+        self.notify(f"Скопировано {len(failed)} сайт(ов)")
+
+    def set_all_profiles(self, on: bool):
+        names = core.list_profiles()
+        for n in names:
+            core.set_enabled(n, on)
+        core.save()
+        self.reload_profiles()
+        self.apply_profiles_now()
+        self.bus.log.emit("Все профили включены" if on else "Все профили выключены")
+        self.update_home_stats()
 
     def update_version_labels(self):
+
         self.up_installed.setText(core.CFG["version"] or "не установлена")
         self.up_latest.setText(self.latest[0] or "—")
 
@@ -2222,11 +2581,29 @@ class MainWindow(QMainWindow):
             return
         core.CFG["strategy"] = name
         core.save()
+        self._pulse_widget(self.combo)
         if core.is_running():
             self.bus.log.emit(f"Стратегия: {name}, перезапускаю сервис…")
             self.restart()
         else:
             self.refresh_status()
+
+    def _pulse_widget(self, w: QWidget):
+        """Короткая подсветка при смене стратегии / версии — с учётом стиля анимации."""
+        if not anim_on() or w is None:
+            return
+        style = core.CFG.get("animation_style", "smooth")
+        duration = 280 if style == "smooth" else 120
+        fx = QGraphicsOpacityEffect(w)
+        w.setGraphicsEffect(fx)
+        anim = QPropertyAnimation(fx, b"opacity", w)
+        anim.setDuration(duration)
+        anim.setStartValue(0.35)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic if style == "smooth" else QEasingCurve.OutQuad)
+        anim.finished.connect(lambda: w.setGraphicsEffect(None))
+        anim.start(QPropertyAnimation.DeleteWhenStopped)
+        self._pulse_anim = anim
 
     # ---------- списки ----------
     def load_list(self, name: str):
@@ -2298,6 +2675,8 @@ class MainWindow(QMainWindow):
     def on_channel_changed(self, i: int):
         core.CFG["app_channel"] = "pre" if i == 1 else "stable"
         core.save()
+        if hasattr(self, "channel_combo"):
+            self._pulse_widget(self.channel_combo)
         self.check_app_updates(manual=True)
 
     def save_app_repo(self):
@@ -2494,8 +2873,27 @@ class MainWindow(QMainWindow):
             Path(path).write_text(self.prof_editor.toPlainText(), encoding="utf-8")
             self.bus.log.emit(f"Профиль экспортирован: {path}")
 
+    def download_profiles_github(self):
+        """Подтянуть профили доменов из github.com/trianglenk/zapretgui.list."""
+        if self.busy:
+            return
+        self.bus.log.emit("Загрузка профилей с GitHub (zapretgui.list)…")
+
+        def work():
+            try:
+                n = core.download_remote_profiles(self.bus.log.emit, overwrite=False)
+                self.bus.log.emit(f"Готово. Новых профилей: {n}")
+                self.bus.changed.emit()
+            except Exception as e:
+                self.bus.failed.emit(f"Не удалось загрузить профили: {e}")
+
+        core.bg(work)
+
     def reload_profiles(self, select: str = ""):
         names = core.list_profiles()
+        enabled = sum(1 for n in names if core.is_enabled(n))
+        if hasattr(self, "profile_summary"):
+            self.profile_summary.setText(f"Профили · {enabled} вкл. из {len(names)}")
         self.prof_list.blockSignals(True)
         self.prof_list.clear()
         for n in names:
@@ -2811,9 +3209,11 @@ class MainWindow(QMainWindow):
             date = f" · {it['date']}" if it.get("date") else ""
             self.zapret_combo.addItem(f"{it['tag']}{pre}{date}", it)
         self.zapret_combo.setEnabled(bool(self.zapret_rels))
+        self.zapret_combo.setMaxVisibleItems(12)
         self.btn_zapret_list.setEnabled(not self.busy)
         if self.zapret_rels:
             self.bus.log.emit(f"Загружено версий zapret: {len(self.zapret_rels)}")
+            self._pulse_widget(self.zapret_combo)
         else:
             self.bus.log.emit("Список версий zapret пуст")
 
@@ -2826,9 +3226,31 @@ class MainWindow(QMainWindow):
         tag, url = it["tag"], it["url"]
         self.run_task(lambda: core.install_release(url, tag, self.bus.log.emit))
 
+    def refresh_local_zapret(self):
+        """Список локальных бэкапов zapret для быстрого переключения без скачивания."""
+        if not hasattr(self, "local_zapret_combo"):
+            return
+        self.local_zapret_combo.clear()
+        backups = core.list_backups()
+        for name in backups:
+            # имя вида 1.10.0.4_20261120-123456
+            ver = name.rsplit("_", 1)[0] if "_" in name else name
+            self.local_zapret_combo.addItem(f"{ver}  ({name})", name)
+        self.local_zapret_combo.setEnabled(bool(backups))
+        self.btn_local_switch.setEnabled(bool(backups) and not self.busy)
+
+    def switch_local_zapret(self):
+        name = self.local_zapret_combo.currentData()
+        if not name or self.busy:
+            if not name:
+                self.bus.log.emit("Нет локальных бэкапов. Сначала установите другую версию — старая сохранится.")
+            return
+        self.run_task(lambda: core.restore_backup(name, self.bus.log.emit))
+
     def on_changed(self):
         self.set_busy(False)
         self.reload_all()
+        self.refresh_local_zapret()
 
     def on_failed(self, msg: str):
         self.bus.log.emit(msg)

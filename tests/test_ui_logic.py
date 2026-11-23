@@ -89,8 +89,13 @@ class UiLogicTests(unittest.TestCase):
     def test_animation_style_is_persisted(self):
         self.w.on_animation_style_changed(1)
         self.assertEqual(core.CFG["animation_style"], "quick")
+        self.assertTrue(core.CFG["animations"])
         self.w.on_animation_style_changed(2)
-        self.assertEqual(core.CFG["animation_style"], "subtle")
+        self.assertEqual(core.CFG["animation_style"], "none")
+        self.assertFalse(core.CFG["animations"])
+        self.w.on_animation_style_changed(0)
+        self.assertEqual(core.CFG["animation_style"], "smooth")
+        self.assertTrue(core.CFG["animations"])
 
     def test_animations_off_is_instant(self):
         core.CFG["animations"] = False
