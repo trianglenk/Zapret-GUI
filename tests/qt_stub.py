@@ -57,3 +57,11 @@ for n in NAMES:
 Qt = D()
 QTimer = _QTimer
 QT_API = "stub"
+
+def __getattr__(name):
+    if name.startswith('__'):
+        raise AttributeError(name)
+    obj = type(name, (D,), {})
+    globals()[name] = obj
+    return obj
+
