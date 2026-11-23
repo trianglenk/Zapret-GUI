@@ -16,12 +16,12 @@
 > Сам zapret в этом репозитории не хранится. Программа скачивает его из репозитория Flowseal и обновляет оттуда же. Проект не связан с авторами zapret.
 
 <div align="center">
-  <img src="assets/g-v1.0.3.png" alt="Zapret GUI" width="40%">
-  <img src="assets/n-v1.0.3.png" alt="Zapret GUI" width="40%">
+  <img src="assets/g-v1.0.3.png" alt="Zapret GUI" width="30%">
+  <img src="assets/n-v1.0.3.png" alt="Zapret GUI" width="30%">
   </br>
-  <img src="assets/s-v1.0.3.png" alt="Zapret GUI" width="40%">
-  <img src="assets/s2-v1.0.3.png" alt="Zapret GUI" width="40%">
-  <img src="assets/p-v1.0.3.png" alt="Zapret GUI" width="40%">
+  <img src="assets/s-v1.0.3.png" alt="Zapret GUI" width="30%">
+  <img src="assets/s2-v1.0.3.png" alt="Zapret GUI" width="30%">
+  <img src="assets/p-v1.0.3.png" alt="Zapret GUI" width="30%">
   
 </div>
 ## Возможности
