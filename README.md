@@ -20,6 +20,7 @@
   <img src="assets/n-v1.0.3.png" alt="Zapret GUI" width="40%">
   </br>
   <img src="assets/s-v1.0.3.png" alt="Zapret GUI" width="40%">
+  <img src="assets/s2-v1.0.3.png" alt="Zapret GUI" width="40%">
   <img src="assets/p-v1.0.3.png" alt="Zapret GUI" width="40%">
   
 </div>
