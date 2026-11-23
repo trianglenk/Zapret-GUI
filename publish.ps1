@@ -1,7 +1,7 @@
 ﻿# Публикация проекта на GitHub и выпуск релиза.
 # Запуск: двойной щелчок по publish.bat
 # Что делает: коммитит изменения, отправляет их в main и создаёт тег v<VERSION> (версия берётся из version.py).
-# Тег запускает GitHub Actions: они соберут ZapretGUI.exe (и версию для Windows 7) и опубликуют релиз.
+# Тег запускает GitHub Actions: они соберут ZapretGUI.exe и опубликуют релиз.
 param([string]$Message = "")
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot

@@ -9,7 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from qt import (  # PySide6 (Windows 10/11) или PySide2 (Windows 7)
+from qt import (  # PySide6
     QT_API, QAbstractButton, QAction, QApplication, QBoxLayout, QButtonGroup, QCheckBox,
     QColor, QColorDialog, QComboBox, QEasingCurve, QFileDialog, QFont, QFrame, QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect, QGridLayout, QHBoxLayout, QIcon, QInputDialog, QLabel, QLineEdit, QLinearGradient, QListWidget, QListWidgetItem,
@@ -3234,8 +3234,22 @@ class MainWindow(QMainWindow):
             self.btn_check.setEnabled(not self.busy)
         installed = core.is_installed()
         outdated = tag != core.CFG["version"] and core.CFG["version"] != "своя"
-        # нет рабочей версии — всегда ставим; иначе auto_update / force
-        if (not installed or outdated) and (not installed or core.CFG["auto_update"] or self._force):
+        # Нет рабочей версии: ставим только если нет бэкапов (иначе пользователь
+        # может переключить вручную). Есть версия и устарела — только при auto_update/force.
+        if not installed:
+            backups = []
+            try:
+                backups = core.list_backups()
+            except Exception:
+                pass
+            if backups and not self._force:
+                self.bus.log.emit(
+                    f"Рабочая папка zapret пуста, но есть бэкапы ({len(backups)}). "
+                    f"Можно переключить в Настройки → zapret или установить заново.")
+                self.sub.setText("Нет рабочей версии — выбери бэкап или установи zapret")
+                return
+            self.install_latest()
+        elif outdated and (core.CFG["auto_update"] or self._force):
             self.install_latest()
         else:
             self.bus.log.emit("Обновлений нет" if not outdated else f"Доступна версия {tag}")

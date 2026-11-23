@@ -1,7 +1,7 @@
 name: Release
 
-# Запуск: git tag v1.0.3 && git push origin v1.0.3  (или скриптом publish.bat)
-# Тег с дефисом (v1.0.3-beta.1) публикуется как пререлиз.
+# Запуск: git tag v1.0.3.1 && git push origin v1.0.3.1  (или скриптом publish.bat)
+# Тег с дефисом (v1.0.3.1-beta.1) публикуется как пререлиз.
 on:
   push:
     tags: ["v*"]
@@ -12,30 +12,12 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Windows 10 / 11: PySide6
-          - flavor: modern
-            python: "3.12"
-            req: requirements.txt
-            pyinstaller: pyinstaller
-            exe: ZapretGUI
-            setup: ZapretGUI-Setup
-          # Windows 7: Python 3.8 + PySide2
-          - flavor: win7
-            python: "3.8"
-            req: requirements-win7.txt
-            pyinstaller: pyinstaller==5.13.2
-            exe: ZapretGUI-Win7
-            setup: ZapretGUI-Win7-Setup
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
 
       - name: Версия и репозиторий из тега
         shell: pwsh
@@ -45,10 +27,10 @@ jobs:
           "APP_VER=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Зависимости
-        run: python -m pip install -r ${{ matrix.req }} ${{ matrix.pyinstaller }}
+        run: python -m pip install -r requirements.txt pyinstaller
 
-      - name: Сборка ${{ matrix.exe }}.exe
-        run: python -m PyInstaller --noconfirm --onefile --windowed --uac-admin --icon icon.ico --add-data "icon.ico;." --name ${{ matrix.exe }} main.py
+      - name: Сборка ZapretGUI.exe
+        run: python -m PyInstaller --noconfirm --onefile --windowed --uac-admin --icon icon.ico --add-data "icon.ico;." --name ZapretGUI main.py
 
       - name: Inno Setup
         run: choco install innosetup -y --no-progress
@@ -56,16 +38,16 @@ jobs:
       - name: Установщик
         shell: pwsh
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVer=$env:APP_VER" "/DExeSrc=dist\${{ matrix.exe }}.exe" "/DOutName=${{ matrix.setup }}" installer.iss
-          Compress-Archive -Path "installer\${{ matrix.setup }}.exe" -DestinationPath "installer\${{ matrix.setup }}.zip"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVer=$env:APP_VER" "/DExeSrc=dist\ZapretGUI.exe" "/DOutName=ZapretGUI-Setup" installer.iss
+          Compress-Archive -Path "installer\ZapretGUI-Setup.exe" -DestinationPath "installer\ZapretGUI-Setup.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.flavor }}
+          name: dist
           path: |
-            dist/${{ matrix.exe }}.exe
-            installer/${{ matrix.setup }}.exe
-            installer/${{ matrix.setup }}.zip
+            dist/ZapretGUI.exe
+            installer/ZapretGUI-Setup.exe
+            installer/ZapretGUI-Setup.zip
 
   release:
     needs: build

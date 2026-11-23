@@ -15,15 +15,6 @@
 
 > Сам zapret в этом репозитории не хранится. Программа скачивает его из репозитория Flowseal и обновляет оттуда же. Проект не связан с авторами zapret.
 
-<div align="center">
-  <img src="assets/g-v1.0.3.png" alt="Zapret GUI" width="30%">
-  <img src="assets/n-v1.0.3.png" alt="Zapret GUI" width="30%">
-  </br>
-  <img src="assets/s-v1.0.3.png" alt="Zapret GUI" width="30%">
-  <img src="assets/s2-v1.0.3.png" alt="Zapret GUI" width="30%">
-  <img src="assets/p-v1.0.3.png" alt="Zapret GUI" width="30%">
-  
-</div>
 ## Возможности
 
 - **Включение одной кнопкой**, обход работает скрыто (без окна `winws`). Выключение полностью останавливает `winws`, службу `zapret` и драйвер WinDivert.
@@ -55,16 +46,6 @@ Zapret GUI\
   config.json     настройки
 ```
 
-### Windows 7
-
-Для Windows 7 есть отдельная сборка `ZapretGUI-Win7.exe` (Python 3.8 и Qt 5.15: PySide6 на Windows 7 не запускается), она лежит в тех же релизах. Что ещё нужно:
-
-- Windows 7 SP1 x64 с обновлениями KB3033929 и KB4474419 (подпись драйверов SHA-2).
-- В `release\bin` заменить `WinDivert.dll` и `WinDivert64.sys` файлами из папки `win7` репозитория [bol-van/zapret-win-bundle](https://github.com/bol-van/zapret-win-bundle).
-
-Работу zapret на Windows 7 гарантировать нельзя: набор Flowseal рассчитан на Windows 10/11. Приложение при обновлении само берёт файл `ZapretGUI-Win7.exe`.
-
-Если антивирус ругается на свежескачанный `.exe`, добавь папку установки в исключения: программы на PyInstaller и драйвер WinDivert часто попадают под ложные срабатывания.
 
 ## Обновления и откат
 
@@ -78,7 +59,7 @@ python -m venv .venv
 .venv\Scripts\python.exe main.py
 ```
 
-Сборка `.exe` и установщика: `build.bat` (нужны Python и Inno Setup 6). Для Windows 7: `build-win7.bat` (нужен Python 3.8 x64).
+Сборка `.exe` и установщика: `build.bat` (нужны Python 3.10+ и Inno Setup 6). Только Windows 10/11.
 
 ## Тесты
 
@@ -97,11 +78,11 @@ python -m unittest discover -s tests -v
 1. Обнови `CHANGELOG.md`, сделай коммит и отправь его в `main`.
 2. Создай тег и отправь его:
    ```
-   git tag v1.0.3
-   git push origin v1.0.3
+   git tag v1.0.3.1
+   git push origin v1.0.3.1
    ```
-   Для пререлиза тег с суффиксом: `v1.0.3-beta.1`.
-3. GitHub Actions соберёт `ZapretGUI.exe`, `ZapretGUI-Win7.exe` и установщики и опубликует релиз. Версия приложения берётся из тега.
+   Для пререлиза тег с суффиксом: `v1.0.3.1-beta.1`.
+3. GitHub Actions соберёт `ZapretGUI.exe` и установщик и опубликует релиз. Версия приложения берётся из тега.
 
 ## Лицензия
 

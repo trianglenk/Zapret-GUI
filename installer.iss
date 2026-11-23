@@ -3,7 +3,7 @@
 ; ярлыки в меню «Пуск» и на рабочем столе, запись в «Установленных приложениях».
 ; В одной папке: ZapretGUI.exe + release + backup + downloads + config.json
 #ifndef AppVer
-  #define AppVer "1.0.3"
+  #define AppVer "1.0.3.1"
 #endif
 #ifndef ExeSrc
   #define ExeSrc "dist\ZapretGUI.exe"

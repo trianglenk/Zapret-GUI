@@ -46,7 +46,7 @@ DEFAULTS = {
     "base_dir": "",          # пусто = папка программы
     "version": "",
     "strategy": "",
-    "auto_update": True,
+    "auto_update": False,
     "autostart": False,
     "close_to_tray": True,
     "theme": "violet",      # violet | green | light | light-green | auto
@@ -640,8 +640,8 @@ def apply_profiles() -> None:
 
 # ---------- обновление самого приложения (GitHub Releases) ----------
 def app_asset() -> str:
-    """Какой файл брать из релиза: сборка для Windows 7 (на PySide2) или обычная."""
-    return "ZapretGUI-Win7.exe" if "PySide2" in sys.modules else "ZapretGUI.exe"
+    """Имя файла приложения в GitHub Releases (только Windows 10/11)."""
+    return "ZapretGUI.exe"
 
 
 def app_repo() -> str:
@@ -933,10 +933,7 @@ def diagnose() -> list:
             out.append((False, f"Пробный запуск не удался: {e}"))
     v = getattr(sys, "getwindowsversion", None)
     if v is not None and (v().major, v().minor) == (6, 1):
-        out.append((None, "Windows 7: нужны обновления KB3033929 и KB4474419, а в zapret\\bin нужно заменить WinDivert.dll "
-                          "и WinDivert64.sys файлами из папки win7 репозитория bol-van/zapret-win-bundle"))
-        if "PySide2" not in sys.modules:
-            out.append((False, "Запущена не Win7-версия приложения (ZapretGUI-Win7.exe)"))
+        out.append((False, "Windows 7 больше не поддерживается. Нужны Windows 10 или 11."))
     return out
 
 
@@ -950,8 +947,7 @@ WINDIVERT_CODES = {
     3: "Не найден путь к драйверу WinDivert (код 3): переустанови zapret кнопкой «Скачать и установить».",
     87: "WinDivert не принял фильтр (код 87): стратегия не подходит к этой версии winws, выбери другую "
         "или обнови zapret.",
-    577: "Windows не принимает подпись драйвера WinDivert (код 577). На Windows 7 нужны обновления "
-         "KB3033929 и KB4474419 и файлы WinDivert из папки win7 (zapret-win-bundle).",
+    577: "Windows не принимает подпись драйвера WinDivert (код 577). Проверь обновления Windows и подпись драйвера.",
     1058: "Служба WinDivert отключена (код 1058): включи её или перезагрузи компьютер.",
     1060: "Служба WinDivert не установилась (код 1060): запусти от администратора и повтори.",
     1275: "Windows заблокировала загрузку драйвера WinDivert (код 1275). Проверь «Изоляцию ядра» → "
