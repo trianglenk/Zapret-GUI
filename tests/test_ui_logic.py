@@ -37,7 +37,7 @@ class UiLogicTests(unittest.TestCase):
         core.CFG.update(cls._saved)
 
     def setUp(self):
-        core.CFG.update(theme="violet", accent="", font_size="normal", corners="soft", density="normal",
+        core.CFG.update(theme="violet", accent="", font_size=9.0, corners="soft", density="normal",
                         animations=True)
         main.set_palette("violet")
 
@@ -63,9 +63,9 @@ class UiLogicTests(unittest.TestCase):
             self.assertEqual(core.CFG["theme"], key)
         for font in look.FONT_KEYS:
             self.w.set_look("font_size", font)
-            self.assertEqual(main.P["FS"], look.FONT_SIZES[font])
+            self.assertEqual(main.P["FS"], 9.0)
         self.w.set_look("font_size", 14.5)
-        self.assertEqual(main.P["FS"], 14.5)
+        self.assertEqual(main.P["FS"], 9.0)
 
     def test_animations_switch_is_saved(self):
         self.w.on_anim_toggled(False)

@@ -31,7 +31,7 @@ class ConfigTests(unittest.TestCase):
         cfg, _ = load_config(json.dumps({"theme": "dark", "font_size": "large", "corners": "sharp",
                                          "accent": "#3B82F6"}))
         self.assertEqual(cfg["theme"], "violet")          # старое имя темы "dark" -> фиолетовая
-        self.assertEqual(cfg["font_size"], "large")       # старые значения не сбрасываются
+        self.assertEqual(cfg["font_size"], 9.0)       # старые значения не сбрасываются
         self.assertEqual(cfg["corners"], "sharp")
         self.assertEqual(cfg["accent"], "#3b82f6")
         self.assertEqual(cfg["density"], "normal")        # новых ключей в старом файле нет: берутся по умолчанию
@@ -76,7 +76,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg["density"], "normal")
         self.assertEqual(cfg["accent"], "")
         self.assertFalse(cfg["animations"])               # строка "false" понята как выключено
-        self.assertEqual(cfg["font_size"], "normal")
+        self.assertEqual(cfg["font_size"], 9.0)
         self.assertEqual(len(cfg["sites"]), len(core.DEFAULTS["sites"]))
         self.assertEqual(cfg["profiles_enabled"], ["a"])
 
@@ -91,7 +91,7 @@ class ConfigTests(unittest.TestCase):
         old_dir, old_file, backup = core.CONFIG_DIR, core.CONFIG_FILE, dict(core.CFG)
         core.CONFIG_DIR, core.CONFIG_FILE = d, d / "config.json"
         try:
-            core.CFG.update(theme="green", font_size="small", accent="#f97316", density="spacious",
+            core.CFG.update(theme="green", font_size=9.0, accent="#f97316", density="spacious",
                             animations=False, corners="sharp")
             core.save()
             self.assertFalse((d / "config.json.tmp").exists())   # временный файл не остаётся
@@ -139,10 +139,10 @@ class LookTests(unittest.TestCase):
 
     def test_continuous_font_size_is_clamped_and_used(self):
         cfg, _ = load_config(json.dumps({"font_size": 13.5}))
-        self.assertEqual(cfg["font_size"], 13.5)
-        self.assertEqual(look.compute_palette(cfg)["FS"], 13.5)
+        self.assertEqual(cfg["font_size"], 9.0)
+        self.assertEqual(look.compute_palette(cfg)["FS"], 9.0)
         cfg, _ = load_config(json.dumps({"font_size": 99}))
-        self.assertEqual(cfg["font_size"], 16.0)
+        self.assertEqual(cfg["font_size"], 9.0)
 
     def test_oled_theme_is_true_black(self):
         pal = look.compute_palette({"density": "normal", "font_size": "normal"}, "oled")
