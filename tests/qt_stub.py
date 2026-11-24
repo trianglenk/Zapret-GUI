@@ -49,8 +49,9 @@ class _QTimer(D):
 NAMES = """QAbstractButton QAction QApplication QBoxLayout QButtonGroup QCheckBox QColor QColorDialog QComboBox
 QEasingCurve QFileDialog QFrame QGraphicsDropShadowEffect QGraphicsOpacityEffect QGridLayout QHBoxLayout QIcon
 QInputDialog QLabel QLineEdit QLinearGradient QListWidget QListWidgetItem QLocalServer QLocalSocket QMainWindow
-QMenu QMessageBox QObject QPainter QPainterPath QPen QPixmap QPlainTextEdit QPointF QPropertyAnimation QPushButton QRectF
-QScrollArea QSize QSlider QStackedWidget QSystemTrayIcon QVariantAnimation QVBoxLayout QWidget QFont""".split()
+QMenu QMessageBox QObject QPainter QPainterPath QPen QPixmap QPlainTextEdit QPointF QPoint QPropertyAnimation
+QPushButton QRectF QScrollArea QSize QSlider QStackedWidget QSystemTrayIcon QVariantAnimation QVBoxLayout QWidget QFont QFontMetrics
+QFontDatabase""".split()
 mod = sys.modules[__name__]
 for n in NAMES:
     setattr(mod, n, type(n, (D,), {}))
