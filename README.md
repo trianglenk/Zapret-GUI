@@ -6,7 +6,6 @@
   <a href="https://github.com/trianglenk/Zapret-GUI/releases/latest"><img alt="Релиз" src="https://img.shields.io/github/v/release/trianglenk/Zapret-GUI?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&color=7c5cff"></a>
   <a href="https://github.com/trianglenk/Zapret-GUI/releases"><img alt="Скачиваний" src="https://img.shields.io/github/downloads/trianglenk/Zapret-GUI/total?label=%D1%81%D0%BA%D0%B0%D1%87%D0%B8%D0%B2%D0%B0%D0%BD%D0%B8%D0%B9&color=2ee6c5"></a>
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0c0d12">
-  <a href="LICENSE"><img alt="Лицензия" src="https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-lightgrey"></a>
 </p>
 
 # Zapret GUI
